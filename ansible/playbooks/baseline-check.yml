@@ -1,0 +1,48 @@
+---
+- name: Check K3s node baseline
+  hosts: k3s_cluster
+  gather_facts: true
+
+  tasks:
+    - name: Display node summary
+      ansible.builtin.debug:
+        msg:
+          - "Hostname: {{ ansible_hostname }}"
+          - "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Kernel: {{ ansible_kernel }}"
+          - "Architecture: {{ ansible_architecture }}"
+          - "CPU cores: {{ ansible_processor_vcpus }}"
+          - "Memory: {{ ansible_memtotal_mb }} MB"
+          - "IPv4: {{ ansible_default_ipv4.address }}"
+          - "Gateway: {{ ansible_default_ipv4.gateway | default('none') }}"
+          - "Swap: {{ ansible_swaptotal_mb }} MB"
+
+    - name: Read IPv4 forwarding status
+      ansible.builtin.command:
+        cmd: sysctl -n net.ipv4.ip_forward
+      register: ip_forward_result
+      changed_when: false
+
+    - name: Display IPv4 forwarding status
+      ansible.builtin.debug:
+        msg: "net.ipv4.ip_forward={{ ip_forward_result.stdout }}"
+
+    - name: Check root filesystem usage
+      ansible.builtin.command:
+        cmd: df -h /
+      register: root_disk_result
+      changed_when: false
+
+    - name: Display root filesystem usage
+      ansible.builtin.debug:
+        var: root_disk_result.stdout_lines
+
+    - name: Verify expected operating system
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+          - ansible_distribution_version is version("24.04", ">=")
+          - ansible_processor_vcpus | int >= 2
+          - ansible_memtotal_mb | int >= 3500
+        success_msg: "{{ inventory_hostname }} passed the basic checks"
+        fail_msg: "{{ inventory_hostname }} does not meet the project baseline"
