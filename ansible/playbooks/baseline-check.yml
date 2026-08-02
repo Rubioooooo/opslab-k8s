@@ -1,6 +1,6 @@
 ---
-- name: Check K3s node baseline
-  hosts: k3s_cluster
+- name: Check Kubernetes node baseline
+  hosts: k8s_cluster
   gather_facts: true
 
   tasks:
@@ -46,3 +46,15 @@
           - ansible_memtotal_mb | int >= 3500
         success_msg: "{{ inventory_hostname }} passed the basic checks"
         fail_msg: "{{ inventory_hostname }} does not meet the project baseline"
+
+    - name: 读取每台服务器时区
+      ansible.builtin.command:
+        cmd: timedatectl show -p Timezone --value
+      register: time_zone
+      changed_when: false
+
+    - name: 显示每台服务器时区
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} timezone: {{ time_zone.stdout }}"
+
+

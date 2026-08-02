@@ -1,6 +1,6 @@
 ---
-- name: Prepare nodes for K3s
-  hosts: k3s_cluster
+- name: Prepare nodes for Kubernetes
+  hosts: k8s_cluster
   become: true
   gather_facts: true
 
@@ -20,7 +20,7 @@
 
     - name: Configure IPv4 forwarding
       ansible.builtin.copy:
-        dest: /etc/sysctl.d/99-k3s.conf
+        dest: /etc/sysctl.d/99-kubernetes.conf
         content: |
           net.ipv4.ip_forward = 1
         owner: root

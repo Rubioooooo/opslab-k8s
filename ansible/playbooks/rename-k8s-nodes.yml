@@ -1,0 +1,36 @@
+---
+- name: Rename nodes for kubeadm cluster
+  hosts: k8s_cluster
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Set system hostname
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+
+    - name: Update local hostname mapping
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '^127\.0\.1\.1'
+        line: "127.0.1.1 {{ inventory_hostname }}"
+
+    - name: Remove old cluster node mappings
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '^192\.168\.8\.(10|11|12)[[:space:]]+'
+        state: absent
+
+    - name: Add Kubernetes node mappings
+      ansible.builtin.blockinfile:
+        path: /etc/hosts
+        marker: "# {mark} OPSLAB K8S NODES"
+        block: |
+          192.168.8.10 k8s-control-plane
+          192.168.8.11 k8s-worker1
+          192.168.8.12 k8s-worker2
+
+    - name: Remove legacy K3s sysctl configuration
+      ansible.builtin.file:
+        path: /etc/sysctl.d/99-k3s.conf
+        state: absent
