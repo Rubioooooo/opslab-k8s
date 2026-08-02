@@ -15,10 +15,10 @@
         regexp: '^127\.0\.1\.1'
         line: "127.0.1.1 {{ inventory_hostname }}"
 
-    - name: Remove old cluster node mappings
+    - name: Remove legacy K3s node mappings
       ansible.builtin.lineinfile:
         path: /etc/hosts
-        regexp: '^192\.168\.8\.(10|11|12)[[:space:]]+'
+        regexp: '^192\.168\.8\.(10|11|12)\s+k3s-'
         state: absent
 
     - name: Add Kubernetes node mappings
