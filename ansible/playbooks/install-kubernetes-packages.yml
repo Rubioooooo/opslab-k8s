@@ -1,0 +1,246 @@
+---
+- name: Install Kubernetes 1.36 packages
+  hosts: k8s_cluster
+  become: true
+  gather_facts: true
+
+  vars:
+    kubernetes_minor_version: "1.36"
+    kubernetes_repository_url: >-
+      https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_minor_version }}/deb/
+    kubernetes_key_url: >-
+      {{ kubernetes_repository_url }}Release.key
+
+  tasks:
+    - name: Verify Ubuntu operating system
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+          - ansible_distribution_version is version("24.04", ">=")
+          - ansible_architecture == "x86_64"
+
+    - name: Install Kubernetes repository prerequisites
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gpg
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+        lock_timeout: 120
+
+    - name: Create APT keyring directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Download Kubernetes repository signing key
+      ansible.builtin.get_url:
+        url: "{{ kubernetes_key_url }}"
+        dest: /tmp/kubernetes-release.key
+        owner: root
+        group: root
+        mode: "0644"
+        force: true
+      register: kubernetes_ascii_key
+
+    - name: Install Kubernetes repository signing key
+      ansible.builtin.shell: |
+        set -o errexit
+        set -o nounset
+        set -o pipefail
+
+        temporary_key="$(mktemp)"
+        trap 'rm -f "${temporary_key}"' EXIT
+
+        gpg \
+          --batch \
+          --yes \
+          --dearmor \
+          --output "${temporary_key}" \
+          /tmp/kubernetes-release.key
+
+        if [ ! -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg ] ||
+           ! cmp -s \
+             "${temporary_key}" \
+             /etc/apt/keyrings/kubernetes-apt-keyring.gpg; then
+          install \
+            -o root \
+            -g root \
+            -m 0644 \
+            "${temporary_key}" \
+            /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+          echo changed
+        fi
+      args:
+        executable: /bin/bash
+      register: kubernetes_key_install
+      changed_when: "'changed' in kubernetes_key_install.stdout"
+
+    - name: Configure Kubernetes 1.36 repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/kubernetes.list
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] {{ kubernetes_repository_url }} /
+      register: kubernetes_repository
+
+    - name: Update APT index after repository changes
+      ansible.builtin.apt:
+        update_cache: true
+        lock_timeout: 120
+      when:
+        - kubernetes_ascii_key.changed
+          or kubernetes_key_install.changed
+          or kubernetes_repository.changed
+
+    - name: Read kubeadm candidate version
+      ansible.builtin.command:
+        argv:
+          - apt-cache
+          - policy
+          - kubeadm
+      register: kubeadm_candidate
+      changed_when: false
+
+    - name: Install Kubernetes packages
+      ansible.builtin.apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        lock_timeout: 120
+
+    - name: Hold Kubernetes packages
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+    - name: Enable and start kubelet
+      ansible.builtin.systemd_service:
+        name: kubelet
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Verify crictl is installed
+      ansible.builtin.shell: |
+        command -v crictl
+      args:
+        executable: /bin/bash
+      register: crictl_command
+      changed_when: false
+      failed_when: false
+
+    - name: Install cri-tools when crictl is absent
+      ansible.builtin.apt:
+        name: cri-tools
+        state: present
+        lock_timeout: 120
+      when: crictl_command.rc != 0
+
+    - name: Configure crictl for containerd
+      ansible.builtin.copy:
+        dest: /etc/crictl.yaml
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          runtime-endpoint: unix:///run/containerd/containerd.sock
+          image-endpoint: unix:///run/containerd/containerd.sock
+          timeout: 10
+          debug: false
+
+    - name: Verify containerd through CRI
+      ansible.builtin.command:
+        argv:
+          - crictl
+          - info
+      register: crictl_info
+      changed_when: false
+
+    - name: Read kubeadm version
+      ansible.builtin.command:
+        argv:
+          - kubeadm
+          - version
+          - -o
+          - short
+      register: kubeadm_version
+      changed_when: false
+
+    - name: Read kubelet version
+      ansible.builtin.command:
+        argv:
+          - kubelet
+          - --version
+      register: kubelet_version
+      changed_when: false
+
+    - name: Read kubectl client version
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - version
+          - --client
+      register: kubectl_version
+      changed_when: false
+
+    - name: Read held packages
+      ansible.builtin.command:
+        argv:
+          - apt-mark
+          - showhold
+      register: held_packages
+      changed_when: false
+
+    - name: Read kubelet service status
+      ansible.builtin.shell: |
+        echo "enabled=$(systemctl is-enabled kubelet 2>/dev/null || true)"
+        echo "active=$(systemctl is-active kubelet 2>/dev/null || true)"
+      args:
+        executable: /bin/bash
+      register: kubelet_service
+      changed_when: false
+
+    - name: Verify Kubernetes package versions
+      ansible.builtin.assert:
+        that:
+          - kubeadm_version.stdout is match('^v1\\.36\\.')
+          - kubelet_version.stdout is search('v1\\.36\\.')
+          - kubectl_version.stdout is search('v1\\.36\\.')
+          - "'kubeadm' in held_packages.stdout_lines"
+          - "'kubelet' in held_packages.stdout_lines"
+          - "'kubectl' in held_packages.stdout_lines"
+          - crictl_info.stdout is search('containerd')
+        fail_msg: |
+          Kubernetes package validation failed:
+          kubeadm={{ kubeadm_version.stdout }}
+          kubelet={{ kubelet_version.stdout }}
+          kubectl={{ kubectl_version.stdout }}
+          holds={{ held_packages.stdout_lines }}
+          kubelet_service={{ kubelet_service.stdout_lines }}
+
+    - name: Show Kubernetes package report
+      ansible.builtin.debug:
+        msg:
+          - "host={{ inventory_hostname }}"
+          - "candidate={{ kubeadm_candidate.stdout_lines }}"
+          - "kubeadm={{ kubeadm_version.stdout }}"
+          - "kubelet={{ kubelet_version.stdout }}"
+          - "kubectl={{ kubectl_version.stdout }}"
+          - "holds={{ held_packages.stdout_lines }}"
+          - "kubelet_service={{ kubelet_service.stdout_lines }}"
+          - "crictl={{ crictl_command.stdout | default('/usr/bin/crictl') }}"
