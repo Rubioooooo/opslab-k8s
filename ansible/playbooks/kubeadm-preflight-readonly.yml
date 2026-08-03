@@ -1,0 +1,251 @@
+---
+- name: Kubernetes installation read-only preflight
+  hosts: k8s_cluster
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Verify operating system
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+          - ansible_distribution_version is version("24.04", ">=")
+          - ansible_architecture == "x86_64"
+        fail_msg: >-
+          Unsupported system:
+          {{ ansible_distribution }}
+          {{ ansible_distribution_version }}
+          {{ ansible_architecture }}
+        success_msg: >-
+          OS check passed:
+          {{ ansible_distribution }}
+          {{ ansible_distribution_version }}
+          {{ ansible_architecture }}
+
+    - name: Read kernel version
+      ansible.builtin.command:
+        argv:
+          - uname
+          - -r
+      register: kernel_result
+      changed_when: false
+
+    - name: Read virtualization type
+      ansible.builtin.command:
+        argv:
+          - systemd-detect-virt
+      register: virtualization_result
+      changed_when: false
+      failed_when: false
+
+    - name: Detect cgroup filesystem
+      ansible.builtin.command:
+        argv:
+          - stat
+          - -fc
+          - "%T"
+          - /sys/fs/cgroup
+      register: cgroup_result
+      changed_when: false
+
+    - name: Read active swap
+      ansible.builtin.command:
+        argv:
+          - swapon
+          - --show
+          - --noheadings
+      register: swap_result
+      changed_when: false
+
+    - name: Read IPv4 forwarding
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - -n
+          - net.ipv4.ip_forward
+      register: ip_forward_result
+      changed_when: false
+
+    - name: Read bridge netfilter sysctl files
+      ansible.builtin.shell: |
+        for key in \
+          net.bridge.bridge-nf-call-iptables \
+          net.bridge.bridge-nf-call-ip6tables; do
+          value=$(sysctl -n "$key" 2>/dev/null || echo "not-available")
+          echo "$key=$value"
+        done
+      args:
+        executable: /bin/bash
+      register: bridge_sysctl_result
+      changed_when: false
+
+    - name: Check Kubernetes related kernel modules
+      ansible.builtin.shell: |
+        for module in overlay br_netfilter nf_conntrack; do
+          if grep -qw "$module" /proc/modules; then
+            echo "$module=loaded"
+          else
+            echo "$module=not-loaded"
+          fi
+        done
+      args:
+        executable: /bin/bash
+      register: module_result
+      changed_when: false
+
+    - name: Read default route
+      ansible.builtin.command:
+        argv:
+          - ip
+          - route
+          - show
+          - default
+      register: default_route_result
+      changed_when: false
+
+    - name: Read route-selected source IP
+      ansible.builtin.command:
+        argv:
+          - ip
+          - route
+          - get
+          - 1.1.1.1
+      register: route_source_result
+      changed_when: false
+
+    - name: Read machine ID
+      ansible.builtin.command:
+        argv:
+          - cat
+          - /etc/machine-id
+      register: machine_id_result
+      changed_when: false
+
+    - name: Read product UUID
+      ansible.builtin.command:
+        argv:
+          - cat
+          - /sys/class/dmi/id/product_uuid
+      register: product_uuid_result
+      changed_when: false
+
+    - name: Read ens33 MAC address
+      ansible.builtin.command:
+        argv:
+          - cat
+          - /sys/class/net/ens33/address
+      register: mac_address_result
+      changed_when: false
+
+    - name: Read root filesystem usage
+      ansible.builtin.command:
+        argv:
+          - df
+          - -hT
+          - /
+      register: filesystem_result
+      changed_when: false
+
+    - name: Read time synchronization state
+      ansible.builtin.shell: |
+        timedatectl show \
+          -p Timezone \
+          -p NTPSynchronized \
+          -p NTP
+      args:
+        executable: /bin/bash
+      register: time_result
+      changed_when: false
+
+    - name: Check existing runtime and Kubernetes packages
+      ansible.builtin.shell: |
+        dpkg-query -W \
+          -f='${Package}|${Version}|${Status}\n' \
+          containerd containerd.io runc \
+          docker.io docker-ce docker-ce-cli \
+          kubeadm kubelet kubectl cri-tools \
+          2>/dev/null || true
+      args:
+        executable: /bin/bash
+      register: package_result
+      changed_when: false
+
+    - name: Check existing services
+      ansible.builtin.shell: |
+        for service in containerd docker kubelet; do
+          state=$(systemctl is-active "$service" 2>/dev/null || true)
+          enabled=$(systemctl is-enabled "$service" 2>/dev/null || true)
+          echo "$service active=$state enabled=$enabled"
+        done
+      args:
+        executable: /bin/bash
+      register: service_result
+      changed_when: false
+
+    - name: Check old kubeadm files
+      ansible.builtin.shell: |
+        for path in \
+          /etc/kubernetes/admin.conf \
+          /etc/kubernetes/kubelet.conf \
+          /etc/kubernetes/manifests \
+          /var/lib/etcd/member \
+          /etc/cni/net.d; do
+          if [ -e "$path" ]; then
+            echo "$path=exists"
+          else
+            echo "$path=absent"
+          fi
+        done
+      args:
+        executable: /bin/bash
+      register: kubeadm_file_result
+      changed_when: false
+
+    - name: Check Kubernetes port usage
+      ansible.builtin.shell: |
+        ss -lntup 2>/dev/null |
+        grep -E ':(6443|2379|2380|10250|10256|10257|10259)([[:space:]]|$)' ||
+        true
+      args:
+        executable: /bin/bash
+      register: port_result
+      changed_when: false
+
+    - name: Verify swap and IPv4 forwarding
+      ansible.builtin.assert:
+        that:
+          - swap_result.stdout | trim == ""
+          - ip_forward_result.stdout | trim == "1"
+        fail_msg: >-
+          Node preparation check failed:
+          swap={{ swap_result.stdout | default('') }},
+          ip_forward={{ ip_forward_result.stdout }}
+        success_msg: "Swap and IPv4 forwarding checks passed"
+
+    - name: Show preflight report
+      ansible.builtin.debug:
+        msg:
+          - "host={{ inventory_hostname }}"
+          - "hostname={{ ansible_hostname }}"
+          - "distribution={{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "kernel={{ kernel_result.stdout }}"
+          - "virtualization={{ virtualization_result.stdout }}"
+          - "cpu_vcpus={{ ansible_processor_vcpus }}"
+          - "memory_mb={{ ansible_memtotal_mb }}"
+          - "primary_ipv4={{ ansible_default_ipv4.address | default('unknown') }}"
+          - "cgroup_filesystem={{ cgroup_result.stdout }}"
+          - "swap={{ swap_result.stdout | default('') }}"
+          - "ip_forward={{ ip_forward_result.stdout }}"
+          - "bridge_sysctl={{ bridge_sysctl_result.stdout_lines }}"
+          - "modules={{ module_result.stdout_lines }}"
+          - "default_route={{ default_route_result.stdout }}"
+          - "route_source={{ route_source_result.stdout }}"
+          - "machine_id={{ machine_id_result.stdout }}"
+          - "product_uuid={{ product_uuid_result.stdout }}"
+          - "ens33_mac={{ mac_address_result.stdout }}"
+          - "root_filesystem={{ filesystem_result.stdout_lines }}"
+          - "time={{ time_result.stdout_lines }}"
+          - "packages={{ package_result.stdout_lines }}"
+          - "services={{ service_result.stdout_lines }}"
+          - "old_kubeadm_files={{ kubeadm_file_result.stdout_lines }}"
+          - "occupied_kubernetes_ports={{ port_result.stdout_lines }}"
