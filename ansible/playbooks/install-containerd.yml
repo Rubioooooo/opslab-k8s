@@ -4,6 +4,9 @@
   become: true
   gather_facts: true
 
+  vars:
+    kubernetes_sandbox_image: "registry.k8s.io/pause:3.10.2"
+
   tasks:
     - name: Verify supported operating system
       ansible.builtin.assert:
@@ -68,6 +71,14 @@
         path: /etc/containerd/config.toml
         regexp: '^(\s*SystemdCgroup\s*=\s*)false\s*$'
         replace: '\1true'
+      notify: Restart containerd
+
+    - name: Align containerd sandbox image with Kubernetes
+      ansible.builtin.lineinfile:
+        path: /etc/containerd/config.toml
+        regexp: '^(\s*sandbox\s*=\s*).*$'
+        line: "\\1'{{ kubernetes_sandbox_image }}'"
+        backrefs: true
       notify: Restart containerd
 
     - name: Ensure containerd is enabled and running
@@ -178,6 +189,7 @@
           - systemd_cgroup_result.stdout is search('SystemdCgroup\\s*=\\s*true')
           - cri_plugins.stdout is search('ok')
           - disabled_plugins_result.stdout is not search('"cri"')
+          - kubernetes_sandbox_image in sandbox_image_result.stdout
         fail_msg: |
           containerd validation failed:
           active={{ containerd_active.stdout }}
