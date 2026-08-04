@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cluster-validation
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smoke-nginx
+  namespace: cluster-validation
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: smoke-nginx
+  template:
+    metadata:
+      labels:
+        app: smoke-nginx
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - k8s-worker1
+                      - k8s-worker2
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: smoke-nginx
+      containers:
+        - name: nginx
+          image: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/nginx:1.27.5-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: smoke-nginx
+  namespace: cluster-validation
+spec:
+  selector:
+    app: smoke-nginx
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: smoke-client
+  namespace: cluster-validation
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k8s-worker1
+  containers:
+    - name: client
+      image: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/busybox:1.36.1
+      imagePullPolicy: IfNotPresent
+      command:
+        - sh
+        - -c
+        - sleep 3600
+  restartPolicy: Never

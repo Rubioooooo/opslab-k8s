@@ -1,0 +1,42 @@
+Kubernetes three-node baseline
+Generated: 2026-08-04T05:35:12+00:00
+
+===== Nodes =====
+NAME                STATUS   ROLES           AGE     VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION              CONTAINER-RUNTIME
+k8s-control-plane   Ready    control-plane   3h17m   v1.36.3   192.168.8.10   <none>        Ubuntu 24.04.4 LTS   6.8.0-136-generic (amd64)   containerd://2.2.1
+k8s-worker1         Ready    <none>          74m     v1.36.3   192.168.8.11   <none>        Ubuntu 24.04.4 LTS   6.8.0-136-generic (amd64)   containerd://2.2.1
+k8s-worker2         Ready    <none>          65m     v1.36.3   192.168.8.12   <none>        Ubuntu 24.04.4 LTS   6.8.0-136-generic (amd64)   containerd://2.2.1
+
+===== Pods =====
+NAMESPACE      NAME                                        READY   STATUS    RESTARTS   AGE     IP             NODE                NOMINATED NODE   READINESS GATES
+kube-flannel   kube-flannel-ds-9pfjb                       1/1     Running   0          65m     192.168.8.12   k8s-worker2         <none>           <none>
+kube-flannel   kube-flannel-ds-h464v                       1/1     Running   0          127m    192.168.8.10   k8s-control-plane   <none>           <none>
+kube-flannel   kube-flannel-ds-jksmp                       1/1     Running   0          74m     192.168.8.11   k8s-worker1         <none>           <none>
+kube-system    coredns-7b7f896557-bt5jw                    1/1     Running   0          86m     10.244.0.6     k8s-control-plane   <none>           <none>
+kube-system    coredns-7b7f896557-px2pj                    1/1     Running   0          86m     10.244.0.5     k8s-control-plane   <none>           <none>
+kube-system    etcd-k8s-control-plane                      1/1     Running   0          3h17m   192.168.8.10   k8s-control-plane   <none>           <none>
+kube-system    kube-apiserver-k8s-control-plane            1/1     Running   0          3h17m   192.168.8.10   k8s-control-plane   <none>           <none>
+kube-system    kube-controller-manager-k8s-control-plane   1/1     Running   0          3h17m   192.168.8.10   k8s-control-plane   <none>           <none>
+kube-system    kube-proxy-dpstp                            1/1     Running   0          65m     192.168.8.12   k8s-worker2         <none>           <none>
+kube-system    kube-proxy-fhffh                            1/1     Running   0          74m     192.168.8.11   k8s-worker1         <none>           <none>
+kube-system    kube-proxy-jps27                            1/1     Running   0          3h17m   192.168.8.10   k8s-control-plane   <none>           <none>
+kube-system    kube-scheduler-k8s-control-plane            1/1     Running   0          3h17m   192.168.8.10   k8s-control-plane   <none>           <none>
+
+===== DaemonSets =====
+NAMESPACE      NAME              DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+kube-flannel   kube-flannel-ds   3         3         3       3            3           <none>                   127m
+kube-system    kube-proxy        3         3         3       3            3           kubernetes.io/os=linux   3h17m
+
+===== Deployments =====
+NAMESPACE     NAME      READY   UP-TO-DATE   AVAILABLE   AGE
+kube-system   coredns   2/2     2            2           3h17m
+
+===== Services =====
+NAMESPACE     NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+default       kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP                  3h17m
+kube-system   kube-dns     ClusterIP   10.96.0.10   <none>        53/UDP,53/TCP,9153/TCP   3h17m
+
+===== CSRs =====
+NAME        AGE   SIGNERNAME                                    REQUESTOR                 REQUESTEDDURATION   CONDITION
+csr-hmbdj   74m   kubernetes.io/kube-apiserver-client-kubelet   system:bootstrap:fblxxm   <none>              Approved,Issued
+csr-s5rxv   65m   kubernetes.io/kube-apiserver-client-kubelet   system:bootstrap:fblxxm   <none>              Approved,Issued

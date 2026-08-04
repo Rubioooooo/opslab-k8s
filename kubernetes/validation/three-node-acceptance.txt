@@ -1,0 +1,50 @@
+Kubernetes three-node acceptance
+Generated: 2026-08-04T05:27:12+00:00
+
+===== Nodes =====
+NAME                STATUS   ROLES           AGE    VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION              CONTAINER-RUNTIME
+k8s-control-plane   Ready    control-plane   3h9m   v1.36.3   192.168.8.10   <none>        Ubuntu 24.04.4 LTS   6.8.0-136-generic (amd64)   containerd://2.2.1
+k8s-worker1         Ready    <none>          66m    v1.36.3   192.168.8.11   <none>        Ubuntu 24.04.4 LTS   6.8.0-136-generic (amd64)   containerd://2.2.1
+k8s-worker2         Ready    <none>          57m    v1.36.3   192.168.8.12   <none>        Ubuntu 24.04.4 LTS   6.8.0-136-generic (amd64)   containerd://2.2.1
+
+===== System Pods =====
+NAMESPACE            NAME                                        READY   STATUS    RESTARTS   AGE    IP             NODE                NOMINATED NODE   READINESS GATES
+cluster-validation   smoke-client                                1/1     Running   0          18m    10.244.1.2     k8s-worker1         <none>           <none>
+cluster-validation   smoke-nginx-58789989bc-mnqrh                1/1     Running   0          34s    10.244.1.4     k8s-worker1         <none>           <none>
+cluster-validation   smoke-nginx-58789989bc-t69jw                1/1     Running   0          97s    10.244.2.3     k8s-worker2         <none>           <none>
+kube-flannel         kube-flannel-ds-9pfjb                       1/1     Running   0          57m    192.168.8.12   k8s-worker2         <none>           <none>
+kube-flannel         kube-flannel-ds-h464v                       1/1     Running   0          119m   192.168.8.10   k8s-control-plane   <none>           <none>
+kube-flannel         kube-flannel-ds-jksmp                       1/1     Running   0          66m    192.168.8.11   k8s-worker1         <none>           <none>
+kube-system          coredns-7b7f896557-bt5jw                    1/1     Running   0          78m    10.244.0.6     k8s-control-plane   <none>           <none>
+kube-system          coredns-7b7f896557-px2pj                    1/1     Running   0          78m    10.244.0.5     k8s-control-plane   <none>           <none>
+kube-system          etcd-k8s-control-plane                      1/1     Running   0          3h9m   192.168.8.10   k8s-control-plane   <none>           <none>
+kube-system          kube-apiserver-k8s-control-plane            1/1     Running   0          3h9m   192.168.8.10   k8s-control-plane   <none>           <none>
+kube-system          kube-controller-manager-k8s-control-plane   1/1     Running   0          3h9m   192.168.8.10   k8s-control-plane   <none>           <none>
+kube-system          kube-proxy-dpstp                            1/1     Running   0          57m    192.168.8.12   k8s-worker2         <none>           <none>
+kube-system          kube-proxy-fhffh                            1/1     Running   0          66m    192.168.8.11   k8s-worker1         <none>           <none>
+kube-system          kube-proxy-jps27                            1/1     Running   0          3h9m   192.168.8.10   k8s-control-plane   <none>           <none>
+kube-system          kube-scheduler-k8s-control-plane            1/1     Running   0          3h9m   192.168.8.10   k8s-control-plane   <none>           <none>
+
+===== Validation Pods =====
+NAME                           READY   STATUS    RESTARTS   AGE   IP           NODE          NOMINATED NODE   READINESS GATES
+smoke-client                   1/1     Running   0          18m   10.244.1.2   k8s-worker1   <none>           <none>
+smoke-nginx-58789989bc-mnqrh   1/1     Running   0          34s   10.244.1.4   k8s-worker1   <none>           <none>
+smoke-nginx-58789989bc-t69jw   1/1     Running   0          97s   10.244.2.3   k8s-worker2   <none>           <none>
+
+===== Validation Service =====
+NAME          TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE   SELECTOR
+smoke-nginx   ClusterIP   10.109.144.139   <none>        80/TCP    18m   app=smoke-nginx
+
+===== Validation EndpointSlices =====
+NAME                ADDRESSTYPE   PORTS   ENDPOINTS               AGE
+smoke-nginx-zgsnt   IPv4          80      10.244.2.3,10.244.1.4   18m
+
+===== CoreDNS =====
+NAME      READY   UP-TO-DATE   AVAILABLE   AGE
+coredns   2/2     2            2           3h9m
+
+===== Flannel =====
+NAME              DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+kube-flannel-ds   3         3         3       3            3           <none>          119m
+
+===== Join Tokens =====
