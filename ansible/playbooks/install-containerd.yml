@@ -5,7 +5,7 @@
   gather_facts: true
 
   vars:
-    kubernetes_sandbox_image: "registry.k8s.io/pause:3.10.2"
+    kubernetes_sandbox_image: "registry.cn-hangzhou.aliyuncs.com/google_containers/pause:3.10.2"
 
   tasks:
     - name: Verify supported operating system
@@ -198,6 +198,7 @@
           disabled_plugins={{ disabled_plugins_result.stdout }}
           CRI plugins={{ cri_plugins.stdout }}
         success_msg: "containerd service, cgroup driver and CRI checks passed"
+      when: not ansible_check_mode
 
     - name: Show containerd report
       ansible.builtin.debug:
