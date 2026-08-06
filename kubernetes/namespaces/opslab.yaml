@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opslab
+  labels:
+    app.kubernetes.io/part-of: opslab-k8s
+    opslab.io/environment: development
