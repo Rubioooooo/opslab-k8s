@@ -1,0 +1,38 @@
+# NGINX Ingress Controller deployment baseline
+
+recorded_at=2026-08-06T11:57:12+00:00
+
+## Nodes and ingress labels
+NAME                STATUS   ROLES           AGE    VERSION   INGRESS-NODE
+k8s-control-plane   Ready    control-plane   2d9h   v1.36.3   
+k8s-worker1         Ready    <none>          2d7h   v1.36.3   true
+k8s-worker2         Ready    <none>          2d7h   v1.36.3   true
+
+## DaemonSet
+NAME            DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR                                        AGE   CONTAINERS      IMAGES                                                                                                                                                          SELECTOR
+nginx-ingress   2         2         2       2            2           kubernetes.io/os=linux,opslab.io/ingress-node=true   11m   nginx-ingress   crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/nginx-ingress@sha256:3cd6641ee0d833543feb6a9cb431f9dd751a044dea4ba6306158efad850afabb   app=nginx-ingress
+
+## Pods
+NAME                  READY   STATUS    RESTARTS   AGE     IP           NODE          NOMINATED NODE   READINESS GATES
+nginx-ingress-lhlhz   1/1     Running   0          11m     10.244.1.5   k8s-worker1   <none>           <none>
+nginx-ingress-x4smd   1/1     Running   0          5m40s   10.244.2.5   k8s-worker2   <none>           <none>
+
+## IngressClass
+NAME    CONTROLLER                     PARAMETERS   AGE
+nginx   nginx.org/ingress-controller   <none>       11m
+
+## IngressClass controller
+nginx.org/ingress-controller
+
+## Controller image
+crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/nginx-ingress@sha256:3cd6641ee0d833543feb6a9cb431f9dd751a044dea4ba6306158efad850afabb
+
+## RBAC check
+yes
+
+## Incident recovery
+worker2_failed_pod=nginx-ingress-7p98n
+worker2_failed_pod_ip=10.244.2.4
+worker2_replacement_pod=nginx-ingress-x4smd
+worker2_replacement_pod_ip=10.244.2.5
+recovery_action=delete only the unhealthy DaemonSet pod
