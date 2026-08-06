@@ -19,7 +19,7 @@
 | Namespace       | 用途                                    |
 | --------------- | ------------------------------------- |
 | `opslab`        | FastAPI、MySQL、Redis，以及业务相关配置          |
-| `ingress-nginx` | Nginx Ingress Controller              |
+| `nginx-ingress` | Nginx Ingress Controller              |
 | `monitoring`    | Prometheus、Grafana、Alertmanager 等监控组件 |
 
 当前业务环境为开发和课程设计环境，因此暂不拆分 `dev`、`test`、`staging` 和 `production` 等多个 Namespace。
@@ -198,7 +198,7 @@ opslab-k8s/
 │   │   └── redis/
 │   ├── addons/
 │   │   ├── coredns/
-│   │   └── ingress-nginx/
+│   │   └── nginx-ingress/
 │   └── observability/
 ├── docs/
 │   ├── incidents/

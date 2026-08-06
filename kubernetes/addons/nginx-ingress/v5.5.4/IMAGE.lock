@@ -1,0 +1,12 @@
+controller_project=nginx/kubernetes-ingress
+controller_version=5.5.4
+source_image=nginx/nginx-ingress:5.5.4
+mirror_tag=crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/nginx-ingress:5.5.4
+mirror_digest=crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/nginx-ingress@sha256:3cd6641ee0d833543feb6a9cb431f9dd751a044dea4ba6306158efad850afabb
+local_image_id=sha256:cea3845520bd1ecb67c9d40b5dfad5d86ef51a1170ee6ef4019269f19d1a64b1
+platform=linux/amd64
+deployment_mode=DaemonSet
+exposure_mode=hostPort
+http_host_port=80
+https_host_port=443
+custom_resources_enabled=false
