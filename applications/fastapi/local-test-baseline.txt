@@ -1,0 +1,30 @@
+# OpsLab API local smoke-test baseline
+
+recorded_at=2026-08-06T15:36:48+00:00
+python=Python 3.12.3
+fastapi=0.141.1
+uvicorn=0.52.1
+base_url=http://127.0.0.1:8000
+
+## GET /
+{
+    "service": "opslab-api",
+    "version": "v0.1.0",
+    "environment": "development",
+    "hostname": "k8s-control-plane"
+}
+
+## GET /healthz
+{
+    "status": "ok"
+}
+
+## GET /readyz
+{
+    "status": "ready"
+}
+
+docs_status=200
+openapi_status=200
+
+PASS: all local smoke tests succeeded
