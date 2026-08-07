@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: opslab-api
+  namespace: opslab
+  labels:
+    app.kubernetes.io/name: opslab-api
+    app.kubernetes.io/instance: opslab
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: opslab-k8s
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.opslab.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: opslab-api
+                port:
+                  name: http

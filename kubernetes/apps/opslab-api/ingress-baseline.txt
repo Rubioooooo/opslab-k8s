@@ -1,0 +1,42 @@
+# OpsLab API HTTP Ingress baseline
+
+recorded_at=2026-08-07T03:42:39+00:00
+hostname=api.opslab.local
+ingress_class=nginx
+entry_node_1=192.168.8.11
+entry_node_2=192.168.8.12
+
+## Ingress
+NAME         CLASS   HOSTS              ADDRESS   PORTS   AGE
+opslab-api   nginx   api.opslab.local             80      7m31s
+
+## Ingress rules
+host=api.opslab.local
+path=/ pathType=Prefix service=opslab-api port=http
+
+## Deployment
+NAME         READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                                                                                                                                                       SELECTOR
+opslab-api   2/2     2            2           21m   opslab-api   crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:f9484afd2fe43d8b1a269572a2b8d7520d0116e0def4b240aec199561f41a32e   app.kubernetes.io/instance=opslab,app.kubernetes.io/name=opslab-api
+
+## Pods
+NAME                         READY   STATUS    RESTARTS   AGE   IP           NODE          NOMINATED NODE   READINESS GATES
+opslab-api-d849d58b7-66ddp   1/1     Running   0          21m   10.244.2.6   k8s-worker2   <none>           <none>
+opslab-api-d849d58b7-sds6l   1/1     Running   0          21m   10.244.1.7   k8s-worker1   <none>           <none>
+
+## EndpointSlice backends
+10.244.1.7	ready=true	node=k8s-worker1
+10.244.2.6	ready=true	node=k8s-worker2
+
+## HTTP path status
+entry=192.168.8.11
+/=200
+/healthz=200
+/readyz=200
+/docs=200
+/openapi.json=200
+entry=192.168.8.12
+/=200
+/healthz=200
+/readyz=200
+/docs=200
+/openapi.json=200
