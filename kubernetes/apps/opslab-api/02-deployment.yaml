@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opslab-api
+  namespace: opslab
+  labels:
+    app.kubernetes.io/name: opslab-api
+    app.kubernetes.io/instance: opslab
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: opslab-k8s
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  minReadySeconds: 5
+  progressDeadlineSeconds: 300
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opslab-api
+      app.kubernetes.io/instance: opslab
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: opslab-api
+        app.kubernetes.io/instance: opslab
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: opslab-k8s
+        app.kubernetes.io/version: v0.1.0
+
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+
+      nodeSelector:
+        kubernetes.io/os: linux
+
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          nodeAffinityPolicy: Honor
+          nodeTaintsPolicy: Honor
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: opslab-api
+              app.kubernetes.io/instance: opslab
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: opslab-api
+          image: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:f9484afd2fe43d8b1a269572a2b8d7520d0116e0def4b240aec199561f41a32e
+          imagePullPolicy: IfNotPresent
+
+          envFrom:
+            - configMapRef:
+                name: opslab-api-config
+
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            timeoutSeconds: 2
+            failureThreshold: 30
+
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

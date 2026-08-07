@@ -1,0 +1,34 @@
+# OpsLab API deployment baseline
+
+recorded_at=2026-08-07T03:26:57+00:00
+image=crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:f9484afd2fe43d8b1a269572a2b8d7520d0116e0def4b240aec199561f41a32e
+
+## Deployment
+NAME         READY   UP-TO-DATE   AVAILABLE   AGE     CONTAINERS   IMAGES                                                                                                                                                       SELECTOR
+opslab-api   2/2     2            2           6m17s   opslab-api   crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:f9484afd2fe43d8b1a269572a2b8d7520d0116e0def4b240aec199561f41a32e   app.kubernetes.io/instance=opslab,app.kubernetes.io/name=opslab-api
+
+## Pods
+NAME                         READY   STATUS    RESTARTS   AGE     IP           NODE          NOMINATED NODE   READINESS GATES
+opslab-api-d849d58b7-66ddp   1/1     Running   0          6m17s   10.244.2.6   k8s-worker2   <none>           <none>
+opslab-api-d849d58b7-sds6l   1/1     Running   0          6m17s   10.244.1.7   k8s-worker1   <none>           <none>
+
+## Service
+NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE     SELECTOR
+opslab-api   ClusterIP   10.101.217.83   <none>        80/TCP    6m17s   app.kubernetes.io/instance=opslab,app.kubernetes.io/name=opslab-api
+
+## EndpointSlice backends
+10.244.1.7	ready=true	node=k8s-worker1
+10.244.2.6	ready=true	node=k8s-worker2
+
+## ConfigMap
+{"APP_ENV":"development","APP_NAME":"opslab-api","APP_VERSION":"v0.1.0"}
+
+## Service health
+{
+    "status": "ok"
+}
+
+## Service readiness
+{
+    "status": "ready"
+}
