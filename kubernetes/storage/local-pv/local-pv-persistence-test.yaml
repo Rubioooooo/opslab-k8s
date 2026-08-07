@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mysql-local-pv-recheck
+  namespace: opslab
+spec:
+  restartPolicy: Never
+  containers:
+    - name: test
+      image: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:f9484afd2fe43d8b1a269572a2b8d7520d0116e0def4b240aec199561f41a32e
+      command:
+        - /bin/sh
+        - -c
+        - |
+          echo "===== persisted data ====="
+          cat /mnt/data/opslab-storage-test.txt
+          sleep 3600
+      volumeMounts:
+        - name: data
+          mountPath: /mnt/data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: opslab-mysql-data
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-local-pv-recheck
+  namespace: opslab
+spec:
+  restartPolicy: Never
+  containers:
+    - name: test
+      image: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:f9484afd2fe43d8b1a269572a2b8d7520d0116e0def4b240aec199561f41a32e
+      command:
+        - /bin/sh
+        - -c
+        - |
+          echo "===== persisted data ====="
+          cat /mnt/data/opslab-storage-test.txt
+          sleep 3600
+      volumeMounts:
+        - name: data
+          mountPath: /mnt/data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: opslab-redis-data
