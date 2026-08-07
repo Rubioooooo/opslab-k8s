@@ -1,0 +1,29 @@
+# Kubernetes storage preflight
+
+recorded_at=2026-08-07T04:53:30+00:00
+
+## StorageClass
+
+## CSI drivers
+
+## CSI nodes
+NODE                DRIVERS
+k8s-control-plane   <none>
+k8s-worker1         <none>
+k8s-worker2         <none>
+
+## PersistentVolumes
+
+## PersistentVolumeClaims
+
+## Nodes
+NAME                STATUS   ROLES           AGE    VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION              CONTAINER-RUNTIME
+k8s-control-plane   Ready    control-plane   3d2h   v1.36.3   192.168.8.10   <none>        Ubuntu 24.04.4 LTS   6.8.0-136-generic (amd64)   containerd://2.2.1
+k8s-worker1         Ready    <none>          3d     v1.36.3   192.168.8.11   <none>        Ubuntu 24.04.4 LTS   6.8.0-136-generic (amd64)   containerd://2.2.1
+k8s-worker2         Ready    <none>          3d     v1.36.3   192.168.8.12   <none>        Ubuntu 24.04.4 LTS   6.8.0-136-generic (amd64)   containerd://2.2.1
+
+## Node taints
+NAME                TAINTS
+k8s-control-plane   [map[effect:NoSchedule key:node-role.kubernetes.io/control-plane]]
+k8s-worker1         <none>
+k8s-worker2         <none>
