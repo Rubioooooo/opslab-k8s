@@ -1,0 +1,36 @@
+# OpsLab API Kubernetes image smoke-test
+
+recorded_at=2026-08-07T03:11:26+00:00
+image=crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:f9484afd2fe43d8b1a269572a2b8d7520d0116e0def4b240aec199561f41a32e
+pod_name=opslab-api-image-test
+pod_ip=10.244.1.6
+pod_node=k8s-worker1
+
+## Pod
+NAME                    READY   STATUS    RESTARTS   AGE    IP           NODE          NOMINATED NODE   READINESS GATES
+opslab-api-image-test   1/1     Running   0          7m5s   10.244.1.6   k8s-worker1   <none>           <none>
+
+## Container user
+uid=10001(appuser) gid=10001(appuser) groups=10001(appuser)
+
+## Root endpoint
+{
+    "service": "opslab-api",
+    "version": "v0.1.0",
+    "environment": "development",
+    "hostname": "opslab-api-image-test"
+}
+
+## Health endpoint
+{
+    "status": "ok"
+}
+
+## Readiness endpoint
+{
+    "status": "ready"
+}
+
+## HTTP status
+docs=200
+openapi=200

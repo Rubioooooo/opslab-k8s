@@ -1,0 +1,12 @@
+application=opslab-api
+application_version=v0.1.0
+source_git_tag=opslab-api-v0.1.0
+source_git_commit=226dd70cfb9dd74b4c21f52c100663af41630743
+base_image=python:3.12.13-slim-bookworm
+mirror_tag=crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api:v0.1.0
+mirror_digest=crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:f9484afd2fe43d8b1a269572a2b8d7520d0116e0def4b240aec199561f41a32e
+local_image_id=sha256:92094a91f0fc65450b78c40557c160aca98bdb7727c7499190184414b8081b27
+image_size_bytes=57493243
+platform=linux/amd64
+configured_user=10001:10001
+container_port=8000
