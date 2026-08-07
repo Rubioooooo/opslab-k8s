@@ -1,0 +1,44 @@
+Kubernetes 数据层阶段 1.4：独立数据盘初始化实测结果
+实施日期：2026-08-07
+
+k8s-worker1
+- 数据盘：/dev/sdb 20GB
+- 分区：/dev/sdb1
+- 分区表：GPT
+- 文件系统：XFS
+- UUID：b41b131b-6fae-438e-9754-f30fb2a7ec37
+- 挂载点：/data/mysql
+- /etc/fstab：使用 UUID 持久化挂载
+- mount -a：验证通过
+- 节点重启后自动挂载：验证通过
+
+k8s-worker2
+- 数据盘：/dev/sdb 20GB
+- 分区：/dev/sdb1
+- 分区表：GPT
+- 文件系统：XFS
+- UUID：c95feff7-f3a6-4e4e-96b4-e902b5bc44cf
+- 挂载点：/data/redis
+- /etc/fstab：使用 UUID 持久化挂载
+- mount -a：验证通过
+- 节点重启后自动挂载：验证通过
+
+重启验收流程：
+drain -> reboot -> Node Ready -> 自动挂载检查 -> uncordon
+
+最终 Kubernetes 验收：
+- k8s-control-plane：Ready
+- k8s-worker1：Ready
+- k8s-worker2：Ready
+- FastAPI Deployment：2/2 Available
+- NGINX Ingress DaemonSet：2/2 Ready
+- Flannel、kube-proxy、CoreDNS：正常
+
+结论：
+阶段 1.4 独立数据盘初始化完成并通过实际重启验证。
+
+下一阶段：
+local-storage StorageClass
+-> Static Local PV
+-> PVC
+-> StatefulSet

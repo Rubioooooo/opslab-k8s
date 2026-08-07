@@ -30,7 +30,7 @@ VMware 独立虚拟磁盘
 
 节点	磁盘容量	文件系统	挂载点	工作负载
 k8s-worker1	20GB	XFS	/data/mysql	MySQL
-k8s-worker2	10GB	XFS	/data/redis	Redis
+k8s-worker2	20GB	XFS	/data/redis	Redis
 3. Kubernetes 存储对象
 
 创建 StorageClass：
