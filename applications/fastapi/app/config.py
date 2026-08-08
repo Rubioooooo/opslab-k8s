@@ -21,6 +21,7 @@ class Settings:
     redis_password: str = field(repr=False)
 
     dependency_timeout_seconds: float
+    redis_cache_ttl_seconds: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -41,6 +42,9 @@ class Settings:
 
             dependency_timeout_seconds=float(
                 os.getenv("DEPENDENCY_TIMEOUT_SECONDS", "2")
+            ),
+            redis_cache_ttl_seconds=int(
+                os.getenv("REDIS_CACHE_TTL_SECONDS", "300")
             ),
         )
 

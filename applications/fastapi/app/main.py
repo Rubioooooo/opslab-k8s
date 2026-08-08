@@ -9,6 +9,7 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException, Response, status
 from pydantic import BaseModel, Field
 
+from app.cache import get_cached_event, set_cached_event
 from app.config import settings
 from app.database import create_event, get_event
 from app.dependency_checks import check_mysql, check_redis
@@ -29,7 +30,7 @@ class HealthStatus(BaseModel):
 
 
 class ReadinessStatus(BaseModel):
-    status: Literal["ready", "not_ready"]
+    status: Literal["ready", "degraded", "not_ready"]
     mysql: Literal["ok", "error"]
     redis: Literal["ok", "error"]
 
@@ -107,19 +108,26 @@ async def readyz(response: Response) -> ReadinessStatus:
             type(redis_result).__name__,
         )
 
-    if mysql_ok and redis_ok:
+    if not mysql_ok:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
         return ReadinessStatus(
-            status="ready",
-            mysql="ok",
-            redis="ok",
+            status="not_ready",
+            mysql="error",
+            redis="ok" if redis_ok else "error",
         )
 
-    response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    if not redis_ok:
+        return ReadinessStatus(
+            status="degraded",
+            mysql="ok",
+            redis="error",
+        )
 
     return ReadinessStatus(
-        status="not_ready",
-        mysql="ok" if mysql_ok else "error",
-        redis="ok" if redis_ok else "error",
+        status="ready",
+        mysql="ok",
+        redis="ok",
     )
 
 
@@ -152,7 +160,26 @@ async def create_event_endpoint(payload: EventCreate) -> EventResponse:
     tags=["events"],
     summary="Get an event",
 )
-async def get_event_endpoint(event_id: int) -> EventResponse:
+async def get_event_endpoint(
+    event_id: int,
+    response: Response,
+) -> EventResponse:
+    cache_state = "MISS"
+
+    try:
+        cached = await get_cached_event(event_id)
+    except Exception as exc:
+        logger.warning(
+            "Redis cache read failed: %s",
+            type(exc).__name__,
+        )
+        cached = None
+        cache_state = "BYPASS"
+
+    if cached is not None:
+        response.headers["X-Cache"] = "HIT"
+        return EventResponse(**cached)
+
     try:
         row = await get_event(event_id)
     except Exception as exc:
@@ -170,5 +197,16 @@ async def get_event_endpoint(event_id: int) -> EventResponse:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found",
         )
+
+    if cache_state == "MISS":
+        try:
+            await set_cached_event(event_id, row)
+        except Exception as exc:
+            logger.warning(
+                "Redis cache write failed: %s",
+                type(exc).__name__,
+            )
+
+    response.headers["X-Cache"] = cache_state
 
     return EventResponse(**row)
