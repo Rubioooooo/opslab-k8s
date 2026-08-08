@@ -1,0 +1,175 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opslab-redis-config
+  namespace: opslab
+data:
+  redis.conf: |
+    bind 0.0.0.0
+    protected-mode yes
+    port 6379
+
+    dir /data
+
+    appendonly yes
+    appendfsync everysec
+    save ""
+
+    aclfile /run/secrets/redis/users.acl
+
+    maxmemory 384mb
+    maxmemory-policy noeviction
+
+    loglevel notice
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opslab-redis
+  namespace: opslab
+spec:
+  selector:
+    app.kubernetes.io/name: opslab-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opslab-redis-headless
+  namespace: opslab
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: opslab-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: opslab-redis
+  namespace: opslab
+spec:
+  serviceName: opslab-redis-headless
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opslab-redis
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: opslab-redis
+
+    spec:
+      terminationGracePeriodSeconds: 30
+
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: redis
+          image: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/redis8.2.8-bookworm@sha256:93e4bfd32d899cabbc410d74bf70c539327aeb1e81dbf74d621d8da17169dba0
+          imagePullPolicy: IfNotPresent
+
+          args:
+            - redis-server
+            - /etc/redis/redis.conf
+
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opslab-redis-secret
+                  key: REDIS_PASSWORD
+
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: opslab-redis-secret
+                  key: REDIS_PASSWORD
+
+          securityContext:
+            allowPrivilegeEscalation: false
+
+          startupProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+
+            - name: redis-config
+              mountPath: /etc/redis/redis.conf
+              subPath: redis.conf
+              readOnly: true
+
+            - name: redis-acl
+              mountPath: /run/secrets/redis/users.acl
+              subPath: users.acl
+              readOnly: true
+
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: opslab-redis-data
+
+        - name: redis-config
+          configMap:
+            name: opslab-redis-config
+
+        - name: redis-acl
+          secret:
+            secretName: opslab-redis-secret
+            items:
+              - key: users.acl
+                path: users.acl
