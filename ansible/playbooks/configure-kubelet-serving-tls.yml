@@ -1,0 +1,110 @@
+---
+- name: Configure cluster kubelet serving TLS bootstrap
+  hosts: k8s-control-plane
+  gather_facts: false
+  become: false
+
+  tasks:
+    - name: Read kubelet configuration from kube-system ConfigMap
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - get
+          - configmap
+          - kubelet-config
+          - -n
+          - kube-system
+          - -o
+          - jsonpath={.data.kubelet}
+      register: kubelet_configmap
+      changed_when: false
+
+    - name: Write kubelet configuration to temporary file
+      ansible.builtin.copy:
+        content: "{{ kubelet_configmap.stdout }}\n"
+        dest: /tmp/opslab-kubelet-config.yaml
+        mode: "0600"
+
+    - name: Enable server TLS bootstrap in cluster kubelet configuration
+      ansible.builtin.lineinfile:
+        path: /tmp/opslab-kubelet-config.yaml
+        regexp: '^serverTLSBootstrap:'
+        line: 'serverTLSBootstrap: true'
+        insertafter: '^rotateCertificates:'
+
+    - name: Build kubelet ConfigMap merge patch
+      ansible.builtin.shell: |
+        python3 - <<'PY'
+        import json
+
+        with open("/tmp/opslab-kubelet-config.yaml") as f:
+            config = f.read()
+
+        print(json.dumps({
+            "data": {
+                "kubelet": config
+            }
+        }))
+        PY
+      args:
+        executable: /bin/bash
+      register: kubelet_config_patch
+      changed_when: false
+
+    - name: Apply kubelet ConfigMap merge patch
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - patch
+          - configmap
+          - kubelet-config
+          - -n
+          - kube-system
+          - --type
+          - merge
+          - -p
+          - "{{ kubelet_config_patch.stdout }}"
+      register: kubelet_configmap_patch_result
+      changed_when: "'no change' not in kubelet_configmap_patch_result.stdout"
+
+    - name: Remove temporary kubelet configuration
+      ansible.builtin.file:
+        path: /tmp/opslab-kubelet-config.yaml
+        state: absent
+
+
+- name: Configure kubelet serving TLS bootstrap on nodes
+  hosts: all
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Back up kubelet configuration if backup does not exist
+      ansible.builtin.copy:
+        src: /var/lib/kubelet/config.yaml
+        dest: /var/lib/kubelet/config.yaml.before-server-tls-bootstrap
+        remote_src: true
+        force: false
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Enable server TLS bootstrap
+      ansible.builtin.lineinfile:
+        path: /var/lib/kubelet/config.yaml
+        regexp: '^serverTLSBootstrap:'
+        line: 'serverTLSBootstrap: true'
+        insertafter: '^rotateCertificates:'
+
+    - name: Verify kubelet certificate settings
+      ansible.builtin.shell: |
+        grep -nE 'rotateCertificates|serverTLSBootstrap' \
+          /var/lib/kubelet/config.yaml
+      args:
+        executable: /bin/bash
+      register: kubelet_tls_config
+      changed_when: false
+
+    - name: Show kubelet certificate settings
+      ansible.builtin.debug:
+        var: kubelet_tls_config.stdout_lines
