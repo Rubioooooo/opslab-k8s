@@ -32,7 +32,7 @@ spec:
         app.kubernetes.io/instance: opslab
         app.kubernetes.io/component: backend
         app.kubernetes.io/part-of: opslab-k8s
-        app.kubernetes.io/version: v0.1.0
+        app.kubernetes.io/version: v0.2.0
 
     spec:
       automountServiceAccountToken: false
@@ -61,12 +61,31 @@ spec:
 
       containers:
         - name: opslab-api
-          image: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:f9484afd2fe43d8b1a269572a2b8d7520d0116e0def4b240aec199561f41a32e
+          image: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:3921eecf08c2845eef9f604ca7ced231ac1cc9ede95a872306b636e52e635788
           imagePullPolicy: IfNotPresent
 
           envFrom:
             - configMapRef:
                 name: opslab-api-config
+
+          env:
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: opslab-mysql-secret
+                  key: MYSQL_USER
+
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opslab-mysql-secret
+                  key: MYSQL_PASSWORD
+
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opslab-redis-secret
+                  key: REDIS_PASSWORD
 
           ports:
             - name: http
