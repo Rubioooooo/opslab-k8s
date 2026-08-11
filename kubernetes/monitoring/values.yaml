@@ -1,0 +1,195 @@
+# OpsLab kube-prometheus-stack
+# Chart: kube-prometheus-stack 88.2.0
+# Kubernetes: v1.36.3
+#
+# Phase 1:
+# - single-replica monitoring stack
+# - ACR mirrored images
+# - ephemeral monitoring storage
+# - disable control-plane targets that are localhost-only
+
+# ------------------------------------------------------------
+# Known-unreachable kubeadm component metrics
+# ------------------------------------------------------------
+
+kubeControllerManager:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeEtcd:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+# Disable rules whose corresponding scrape targets are intentionally disabled.
+defaultRules:
+  rules:
+    etcd: false
+    kubeControllerManager: false
+    kubeProxy: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    windows: false
+
+# ------------------------------------------------------------
+# Prometheus Operator
+# ------------------------------------------------------------
+
+prometheusOperator:
+  image:
+    registry: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com
+    repository: k8s-test-111/monitoring-prometheus-operator
+    tag: v0.93.0
+    pullPolicy: IfNotPresent
+
+  prometheusConfigReloader:
+    image:
+      registry: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com
+      repository: k8s-test-111/monitoring-config-reloader
+      tag: v0.93.0
+
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+  admissionWebhooks:
+    patch:
+      image:
+        registry: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com
+        repository: k8s-test-111/monitoring-webhook-certgen
+        tag: 1.8.5
+        pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+# ------------------------------------------------------------
+# Prometheus
+# ------------------------------------------------------------
+
+prometheus:
+  prometheusSpec:
+    image:
+      registry: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com
+      repository: k8s-test-111/monitoring-prometheus
+      tag: v3.13.2-distroless
+      pullPolicy: IfNotPresent
+
+    replicas: 1
+
+    # Phase 1 uses temporary storage.
+    # Persistent Local PV will be added after the monitoring chain passes.
+    retention: 3d
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+
+# ------------------------------------------------------------
+# Alertmanager
+# ------------------------------------------------------------
+
+alertmanager:
+  enabled: true
+
+  alertmanagerSpec:
+    image:
+      registry: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com
+      repository: k8s-test-111/monitoring-alertmanager
+      tag: v0.33.1
+      pullPolicy: IfNotPresent
+
+    replicas: 1
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+# ------------------------------------------------------------
+# Grafana
+# ------------------------------------------------------------
+
+grafana:
+  enabled: true
+
+  image:
+    registry: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com
+    repository: k8s-test-111/monitoring-grafana
+    tag: 13.1.3
+    pullPolicy: IfNotPresent
+
+  sidecar:
+    image:
+      registry: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com
+      repository: k8s-test-111/monitoring-k8s-sidecar
+      tag: 2.10.1
+
+  persistence:
+    enabled: false
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 384Mi
+
+# ------------------------------------------------------------
+# kube-state-metrics
+# ------------------------------------------------------------
+
+kube-state-metrics:
+  image:
+    registry: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com
+    repository: k8s-test-111/monitoring-kube-state-metrics
+    tag: v2.19.1
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# ------------------------------------------------------------
+# node-exporter
+# ------------------------------------------------------------
+
+prometheus-node-exporter:
+  image:
+    registry: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com
+    repository: k8s-test-111/monitoring-node-exporter
+    tag: v1.12.1
+    distroless: true
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      cpu: 150m
+      memory: 128Mi
