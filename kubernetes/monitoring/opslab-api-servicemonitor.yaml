@@ -1,0 +1,24 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: opslab-api
+  namespace: monitoring
+  labels:
+    release: opslab-monitoring
+    app.kubernetes.io/name: opslab-api
+    app.kubernetes.io/part-of: opslab-k8s
+spec:
+  namespaceSelector:
+    matchNames:
+      - opslab
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opslab-api
+      app.kubernetes.io/instance: opslab
+
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 5s
