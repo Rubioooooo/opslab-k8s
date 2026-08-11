@@ -1,0 +1,30 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: opslab-api-alerts
+  namespace: monitoring
+  labels:
+    release: opslab-monitoring
+    app.kubernetes.io/part-of: opslab-k8s
+    app.kubernetes.io/component: alerting
+spec:
+  groups:
+    - name: opslab-api.rules
+      rules:
+        - alert: FastAPITargetDown
+          expr: |
+            up{
+              namespace="opslab",
+              job="opslab-api",
+              service="opslab-api"
+            } == 0
+          for: 2m
+          labels:
+            severity: warning
+            service: opslab-api
+          annotations:
+            summary: "FastAPI Prometheus target is down"
+            description: >-
+              Prometheus has failed to scrape FastAPI pod
+              {{ $labels.pod }} at {{ $labels.instance }}
+              for more than 2 minutes.
