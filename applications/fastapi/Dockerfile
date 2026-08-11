@@ -2,7 +2,7 @@
 
 FROM python:3.12.13-slim-bookworm
 
-ARG APP_VERSION=v0.2.0
+ARG APP_VERSION=v0.3.0
 
 LABEL org.opencontainers.image.title="opslab-api" \
       org.opencontainers.image.description="FastAPI service for the opslab-k8s SRE practice project" \

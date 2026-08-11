@@ -13,6 +13,7 @@ from app.cache import get_cached_event, set_cached_event
 from app.config import settings
 from app.database import create_event, get_event
 from app.dependency_checks import check_mysql, check_redis
+from app.metrics import PrometheusMetricsMiddleware, metrics_response
 
 
 logger = logging.getLogger("opslab-api")
@@ -54,6 +55,7 @@ app = FastAPI(
     openapi_url="/openapi.json",
 )
 
+app.add_middleware(PrometheusMetricsMiddleware)
 
 @app.get(
     "/",
@@ -68,6 +70,14 @@ async def root() -> ServiceInfo:
         environment=settings.app_env,
         hostname=socket.gethostname(),
     )
+
+@app.get(
+    "/metrics",
+    include_in_schema=False,
+)
+async def metrics() -> Response:
+    return metrics_response()
+
 
 
 @app.get(
