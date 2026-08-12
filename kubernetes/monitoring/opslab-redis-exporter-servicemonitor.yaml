@@ -1,0 +1,24 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: opslab-redis-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: opslab-redis-exporter
+    app.kubernetes.io/part-of: opslab-k8s
+    release: opslab-monitoring
+
+spec:
+  namespaceSelector:
+    matchNames:
+      - opslab
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opslab-redis-exporter
+
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 5s
