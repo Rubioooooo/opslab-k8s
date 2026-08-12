@@ -1,0 +1,541 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opslab-data-services-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+
+data:
+  opslab-data-services-dashboard.json: |
+    {
+      "uid": "opslab-data-services-overview",
+      "title": "OpsLab / Data Services Overview",
+      "description": "SRE overview for OpsLab MySQL and Redis data services, covering availability, throughput, connections, cache behavior, and capacity.",
+      "tags": [
+        "opslab",
+        "mysql",
+        "redis",
+        "data-services",
+        "sre"
+      ],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "15s",
+      "time": {
+        "from": "now-30m",
+        "to": "now"
+      },
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "label": "Prometheus",
+            "type": "datasource",
+            "query": "prometheus",
+            "refresh": 1,
+            "multi": false,
+            "includeAll": false
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "row",
+          "title": "MySQL",
+          "collapsed": false,
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 24,
+            "h": 1
+          },
+          "panels": []
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "MySQL Up",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 1,
+            "w": 4,
+            "h": 5
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "text": "UP"
+                    }
+                  }
+                }
+              ]
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "area"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "mysql_up{job=\"opslab-mysqld-exporter\"}",
+              "legendFormat": "MySQL"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Threads Connected",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 4,
+            "y": 1,
+            "w": 5,
+            "h": 5
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "area"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "mysql_global_status_threads_connected{job=\"opslab-mysqld-exporter\"}",
+              "legendFormat": "Connected"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Threads Running",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 9,
+            "y": 1,
+            "w": 5,
+            "h": 5
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "area"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "mysql_global_status_threads_running{job=\"opslab-mysqld-exporter\"}",
+              "legendFormat": "Running"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "gauge",
+          "title": "InnoDB Buffer Pool Usage",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 14,
+            "y": 1,
+            "w": 10,
+            "h": 5
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "mysql_global_status_innodb_buffer_pool_bytes_data{job=\"opslab-mysqld-exporter\"} / mysql_global_variables_innodb_buffer_pool_size{job=\"opslab-mysqld-exporter\"} * 100",
+              "legendFormat": "Buffer Pool Usage"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "MySQL QPS",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 6,
+            "w": 24,
+            "h": 7
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "rate(mysql_global_status_questions{job=\"opslab-mysqld-exporter\"}[5m])",
+              "legendFormat": "QPS"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "type": "row",
+          "title": "Redis",
+          "collapsed": false,
+          "gridPos": {
+            "x": 0,
+            "y": 13,
+            "w": 24,
+            "h": 1
+          },
+          "panels": []
+        },
+        {
+          "id": 8,
+          "type": "stat",
+          "title": "Redis Up",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 14,
+            "w": 4,
+            "h": 5
+          },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "text": "UP"
+                    }
+                  }
+                }
+              ]
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "area"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "redis_up{job=\"opslab-redis-exporter\"}",
+              "legendFormat": "Redis"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "type": "stat",
+          "title": "Connected Clients",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 4,
+            "y": 14,
+            "w": 6,
+            "h": 5
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "colorMode": "value",
+            "graphMode": "area"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "redis_connected_clients{job=\"opslab-redis-exporter\"}",
+              "legendFormat": "Clients"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "type": "gauge",
+          "title": "Redis Memory Usage",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 10,
+            "y": 14,
+            "w": 14,
+            "h": 5
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "min": 0,
+              "max": 100
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "redis_memory_used_bytes{job=\"opslab-redis-exporter\"} / redis_memory_max_bytes{job=\"opslab-redis-exporter\"} * 100",
+              "legendFormat": "Memory Usage"
+            }
+          ]
+        },
+        {
+          "id": 11,
+          "type": "timeseries",
+          "title": "Redis Commands / sec",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 19,
+            "w": 12,
+            "h": 7
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "rate(redis_commands_processed_total{job=\"opslab-redis-exporter\"}[5m])",
+              "legendFormat": "Commands / sec"
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "type": "timeseries",
+          "title": "Redis Cache Hits / Misses",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 19,
+            "w": 12,
+            "h": 7
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "rate(redis_keyspace_hits_total{job=\"opslab-redis-exporter\"}[5m])",
+              "legendFormat": "Hits"
+            },
+            {
+              "refId": "B",
+              "expr": "rate(redis_keyspace_misses_total{job=\"opslab-redis-exporter\"}[5m])",
+              "legendFormat": "Misses"
+            }
+          ]
+        },
+        {
+          "id": 13,
+          "type": "timeseries",
+          "title": "Redis Evicted / Expired Keys",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 26,
+            "w": 24,
+            "h": 7
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "rate(redis_evicted_keys_total{job=\"opslab-redis-exporter\"}[5m])",
+              "legendFormat": "Evicted"
+            },
+            {
+              "refId": "B",
+              "expr": "rate(redis_expired_keys_total{job=\"opslab-redis-exporter\"}[5m])",
+              "legendFormat": "Expired"
+            }
+          ]
+        }
+      ]
+    }
