@@ -20,8 +20,8 @@
 | Drill 1 | FastAPI Pod Self-Healing | SEALED | PASS |
 | Drill 2 | Redis Dependency Failure | SEALED | PASS（首次 FAIL，修复后复测 PASS） |
 | Drill 3 | MySQL Pod Self-Healing | SEALED | PASS（首次 FAIL，修复后复测 PASS） |
-| Drill 4 | HPA Load / Recovery | Pending | 待执行/复用历史证据 |
-| Drill 5 | Monitoring Target Failure | Pending | 待执行 |
+| Drill 4 | HPA Load / Recovery | SEALED | PASS |
+| Drill 5 | Monitoring Target Failure | SEALED | PASS（复用历史真实告警证据并完成当前 Runtime 交叉验证） |
 | Drill 6 | Ingress / Service / Pod 链路诊断 | Pending | 待执行 |
 | Drill 7 | Worker Node / Local PV Boundary | Pending | 最后执行，高风险 |
 
@@ -2165,7 +2165,800 @@ DRILL_4_HPA_LOAD_RECOVERY=PASS
 
 # 7. Drill 5 — Monitoring Target Failure
 
-状态：Pending。只破坏 exporter / scrape 链路中的一个最小点，不同时破坏数据库；验证 Target `up=0`、告警触发、恢复后 `up=1`。
+## 7.1 验证目标
+
+本 Drill 用于验证 OpsLab 的监控与告警链路是否能够形成完整故障检测闭环：
+
+```text
+Healthy Target
+  ↓
+Prometheus up=1
+  ↓
+Scrape Failure
+  ↓
+Prometheus up=0
+  ↓
+Alert Pending
+  ↓
+Alert Firing
+  ↓
+Alertmanager Active
+  ↓
+External Notification
+  ↓
+Target Recovery
+  ↓
+Prometheus up=1
+  ↓
+Rule Inactive
+  ↓
+Alertmanager Resolved
+  ↓
+Resolved Notification
+```
+
+本阶段重点不是证明“Prometheus Pod 能 Running”，而是验证：
+
+```text
+Metric Collection
++
+Failure Detection
++
+Alert State Machine
++
+Alert Routing
++
+External Notification
++
+Recovery Convergence
+```
+
+完整 SRE 告警闭环。
+
+---
+
+## 7.2 Evidence Reuse 决策
+
+Drill 5 开始前首先审计 Repository 中已有监控与告警证据。
+
+确认存在：
+
+```text
+docs/validation/fastapi-alerting-end-to-end-validation.md
+docs/observability/fastapi-prometheus-grafana-observability-stage-report.md
+
+kubernetes/monitoring/opslab-api-servicemonitor.yaml
+kubernetes/monitoring/rules/opslab-api-alerts.yaml
+
+scripts/apply-alertmanager-email.sh
+```
+
+历史验证已经通过真实故障注入完整覆盖：
+
+```text
+FastAPI Target up=1
+↓
+Scrape Fault Injection
+↓
+FastAPI Target up=0
+↓
+Inactive → Pending
+↓
+Pending → Firing
+↓
+Alertmanager Active
+↓
+QQ Firing Email
+↓
+Scrape Recovery
+↓
+FastAPI Target up=1
+↓
+Rule Inactive
+↓
+Alertmanager Active Alert Cleared
+↓
+QQ Resolved Email
+```
+
+因此本次 Systematic Fault Drill 决定：
+
+```text
+DRILL5_EVIDENCE_DECISION=REUSE
+MONITORING_TARGET_FAILURE_RETEST=NOT_REQUIRED
+```
+
+不机械重复已经真实执行过的 scrape fault injection。
+
+本轮只补充：
+
+```text
+Current Runtime Corroboration
+```
+
+以验证历史证据所对应的配置和监控链路当前仍然有效。
+
+---
+
+## 7.3 PrometheusRule 配置证据
+
+当前 Kubernetes 中存在：
+
+```text
+PrometheusRule:
+monitoring/opslab-api-alerts
+```
+
+核心规则：
+
+```text
+alert:
+FastAPITargetDown
+
+expression:
+up{
+  namespace="opslab",
+  job="opslab-api",
+  service="opslab-api"
+} == 0
+
+for:
+2m
+
+severity:
+warning
+```
+
+该规则意味着：
+
+```text
+Prometheus 无法成功 scrape FastAPI Target
+↓
+up == 0
+↓
+持续达到 for: 2m
+↓
+FastAPITargetDown Firing
+```
+
+当前资源还带有：
+
+```text
+prometheus-operator-validated: "true"
+```
+
+验证：
+
+```text
+PROMETHEUS_RULE_PRESENT=PASS
+FASTAPI_TARGET_DOWN_RULE_PRESENT=PASS
+```
+
+---
+
+## 7.4 ServiceMonitor 配置证据
+
+当前 Kubernetes 中存在：
+
+```text
+ServiceMonitor:
+monitoring/opslab-api
+```
+
+配置：
+
+```text
+namespace:
+opslab
+
+path:
+/metrics
+
+port:
+http
+
+interval:
+15s
+
+scrapeTimeout:
+5s
+```
+
+Selector：
+
+```text
+app.kubernetes.io/instance=opslab
+app.kubernetes.io/name=opslab-api
+```
+
+因此监控发现链路为：
+
+```text
+ServiceMonitor
+↓
+opslab namespace
+↓
+opslab-api Service
+↓
+FastAPI Endpoints
+↓
+/metrics
+↓
+Prometheus
+```
+
+验证：
+
+```text
+FASTAPI_SERVICEMONITOR_PRESENT=PASS
+SCRAPE_CONFIGURATION_PRESENT=PASS
+```
+
+---
+
+## 7.5 历史健康基线
+
+历史端到端告警验证开始前，两个 FastAPI Target 均为：
+
+```text
+up=1
+up=1
+```
+
+同时：
+
+```text
+FastAPITargetDown
+state=inactive
+```
+
+因此：
+
+```text
+HEALTHY_TARGET_BASELINE=PASS
+INITIAL_ALERT_STATE_INACTIVE=PASS
+```
+
+---
+
+## 7.6 历史 Scrape Fault Injection
+
+历史实验使用最小化 scrape fault injection。
+
+故障期间两个 FastAPI Target 实际变为：
+
+```text
+up=0
+up=0
+```
+
+这里验证的是：
+
+```text
+Application /metrics
+        ↓
+Prometheus Scrape
+        ↓
+up Metric
+```
+
+这一监控链路确实能够反映 Target 不可抓取状态。
+
+因此：
+
+```text
+SCRAPE_FAULT_INJECTION=PASS
+PROMETHEUS_TARGET_DOWN_DETECTION=PASS
+```
+
+---
+
+## 7.7 Inactive → Pending
+
+当：
+
+```text
+up == 0
+```
+
+满足 FastAPITargetDown 表达式以后，PrometheusRule 实际进入：
+
+```text
+Inactive
+↓
+Pending
+```
+
+并观察到两个 FastAPI Target 对应的 pending alerts。
+
+因此：
+
+```text
+ALERT_PENDING=PASS
+```
+
+该阶段证明告警表达式能够真实匹配故障指标，而不是只存在一份未生效的 YAML。
+
+---
+
+## 7.8 Pending → Firing
+
+FastAPITargetDown 配置：
+
+```text
+for: 2m
+```
+
+故障持续达到要求后，历史实验实际观察：
+
+```text
+Pending
+↓
+Firing
+```
+
+两个 FastAPI Target 对应的 alert 均进入 firing。
+
+因此：
+
+```text
+ALERT_FIRING=PASS
+```
+
+该过程同时验证了 Prometheus Alert Rule 的状态机：
+
+```text
+Inactive
+→ Pending
+→ Firing
+```
+
+---
+
+## 7.9 Alertmanager Active
+
+FastAPITargetDown 进入 Firing 后，Alertmanager API 中实际出现两个：
+
+```text
+alertname=FastAPITargetDown
+```
+
+Active Alert。
+
+因此链路进一步成立：
+
+```text
+PrometheusRule
+↓
+Firing Alert
+↓
+Alertmanager
+```
+
+验证：
+
+```text
+ALERTMANAGER_ACTIVE=PASS
+```
+
+---
+
+## 7.10 External Firing Notification
+
+历史实验中：
+
+```text
+FastAPITargetDown
+```
+
+进入 Firing 后，QQ 邮箱真实收到告警邮件。
+
+告警链路：
+
+```text
+Prometheus
+↓
+FastAPITargetDown Firing
+↓
+Alertmanager
+↓
+AlertmanagerConfig
+↓
+qq-email receiver
+↓
+SMTP
+↓
+QQ Email
+```
+
+实际完成外部通知。
+
+验证：
+
+```text
+FIRING_EMAIL_DELIVERY=PASS
+```
+
+这证明告警能力没有停止在：
+
+```text
+Prometheus UI 有红色告警
+```
+
+而是已经完成真实外部通知。
+
+---
+
+## 7.11 Historical Recovery
+
+恢复 scrape 链路以后，两个 FastAPI Target 实际恢复：
+
+```text
+up=1
+up=1
+```
+
+随后：
+
+```text
+FastAPITargetDown
+Firing
+↓
+Inactive
+```
+
+Prometheus 中：
+
+```text
+alerts=0
+```
+
+Alertmanager 中：
+
+```text
+FastAPITargetDown:
+no active alerts
+```
+
+因此：
+
+```text
+TARGET_RECOVERY=PASS
+RULE_RECOVERY_INACTIVE=PASS
+ALERTMANAGER_ACTIVE_CLEAR=PASS
+```
+
+---
+
+## 7.12 Resolved Notification
+
+AlertmanagerConfig 配置：
+
+```text
+sendResolved=true
+```
+
+恢复后 QQ 邮箱真实收到 Resolved 邮件。
+
+因此完整通知生命周期为：
+
+```text
+Fault
+↓
+Firing Email
+↓
+Recovery
+↓
+Resolved Email
+```
+
+验证：
+
+```text
+RESOLVED_EMAIL_DELIVERY=PASS
+```
+
+---
+
+## 7.13 当前 Prometheus / Alertmanager Runtime
+
+本次 Drill 没有重新注入 scrape fault。
+
+使用临时 port-forward 对当前 Runtime 进行交叉验证。
+
+结果：
+
+```text
+PROMETHEUS_READY=1
+ALERTMANAGER_READY=1
+```
+
+说明当前：
+
+```text
+Prometheus API = Ready
+Alertmanager API = Ready
+```
+
+验证：
+
+```text
+CURRENT_PROMETHEUS_READY=PASS
+CURRENT_ALERTMANAGER_READY=PASS
+```
+
+---
+
+## 7.14 当前 FastAPI Target 状态
+
+当前 Prometheus 查询：
+
+```text
+up{namespace="opslab"}
+```
+
+返回 FastAPI 两个 Target：
+
+```text
+job=opslab-api
+pod=opslab-api-797c8fdfbf-tmtx2
+instance=10.244.1.57:8000
+up=1
+
+job=opslab-api
+pod=opslab-api-797c8fdfbf-zwmzk
+instance=10.244.2.69:8000
+up=1
+```
+
+说明当前：
+
+```text
+worker1 FastAPI Target = UP
+worker2 FastAPI Target = UP
+```
+
+同时 MySQL exporter 与 Redis exporter 也返回：
+
+```text
+mysql exporter up=1
+redis exporter up=1
+```
+
+当前监控采集链路正常。
+
+验证：
+
+```text
+CURRENT_FASTAPI_TARGETS_UP=PASS
+```
+
+---
+
+## 7.15 当前 FastAPITargetDown Rule Runtime
+
+Prometheus `/api/v1/rules` 当前返回：
+
+```text
+name:
+FastAPITargetDown
+
+state:
+inactive
+
+health:
+ok
+
+duration:
+120
+
+alerts_count:
+0
+```
+
+说明当前状态满足：
+
+```text
+FastAPI Targets up=1
+↓
+FastAPITargetDown Expression=False
+↓
+Rule State=inactive
+↓
+No Active Rule Alerts
+```
+
+因此：
+
+```text
+CURRENT_ALERT_RULE_HEALTH=PASS
+CURRENT_ALERT_RULE_INACTIVE=PASS
+```
+
+---
+
+## 7.16 当前 Alertmanager 状态
+
+Alertmanager `/api/v2/alerts` 当前返回：
+
+```text
+FASTAPI_TARGET_DOWN_ACTIVE_COUNT=0
+```
+
+即当前没有任何 Active：
+
+```text
+FastAPITargetDown
+```
+
+说明历史故障恢复以后，告警状态没有残留。
+
+验证：
+
+```text
+CURRENT_ALERTMANAGER_CLEAN=PASS
+```
+
+---
+
+## 7.17 为什么没有重新制造故障
+
+Repository 已经保存了一次完整的真实告警故障实验：
+
+```text
+Healthy
+↓
+up=1
+↓
+Real Scrape Fault
+↓
+up=0
+↓
+Pending
+↓
+Firing
+↓
+Alertmanager Active
+↓
+Real External Firing Email
+↓
+Recovery
+↓
+up=1
+↓
+Inactive
+↓
+Alertmanager Cleared
+↓
+Real External Resolved Email
+```
+
+而本轮又证明：
+
+```text
+Prometheus Ready
++
+Alertmanager Ready
++
+ServiceMonitor Still Present
++
+PrometheusRule Still Present
++
+FastAPI Targets up=1
++
+Rule health=ok
++
+Rule state=inactive
++
+Alertmanager active=0
+```
+
+因此再次进行同样的 scrape fault injection：
+
+```text
+不会明显增加新的有效证据
+```
+
+反而会制造不必要的：
+
+```text
+Monitoring Disruption
++
+Alert Noise
++
+External Email Noise
+```
+
+所以 Drill 5 采用：
+
+```text
+HISTORICAL_REAL_FAULT_EVIDENCE
++
+CURRENT_RUNTIME_CORROBORATION
+```
+
+而不是：
+
+```text
+MECHANICAL_FAULT_RETEST
+```
+
+---
+
+## 7.18 Drill 5 最终证据链
+
+```text
+Historical Healthy Target
+        ↓
+up=1
+        ↓
+Real Scrape Fault Injection
+        ↓
+up=0
+        ↓
+Inactive → Pending
+        ↓
+Pending → Firing
+        ↓
+Alertmanager Active
+        ↓
+Real QQ Firing Email
+        ↓
+Scrape Recovery
+        ↓
+up=1
+        ↓
+Rule Inactive
+        ↓
+Alertmanager Active Cleared
+        ↓
+Real QQ Resolved Email
+        ↓
+Current Prometheus Ready
+        ↓
+Current Alertmanager Ready
+        ↓
+Current FastAPI Targets up=1
+        ↓
+Current Rule health=ok
+        ↓
+Current Rule inactive
+        ↓
+Current Alertmanager Active=0
+```
+
+最终判定：
+
+```text
+DRILL5_EVIDENCE_DECISION=REUSE
+MONITORING_TARGET_FAILURE_RETEST=NOT_REQUIRED
+
+PROMETHEUS_RULE_PRESENT=PASS
+FASTAPI_SERVICEMONITOR_PRESENT=PASS
+
+HISTORICAL_HEALTHY_TARGET_BASELINE=PASS
+SCRAPE_FAULT_INJECTION=PASS
+PROMETHEUS_TARGET_DOWN_DETECTION=PASS
+ALERT_PENDING=PASS
+ALERT_FIRING=PASS
+ALERTMANAGER_ACTIVE=PASS
+FIRING_EMAIL_DELIVERY=PASS
+TARGET_RECOVERY=PASS
+RULE_RECOVERY_INACTIVE=PASS
+ALERTMANAGER_ACTIVE_CLEAR=PASS
+RESOLVED_EMAIL_DELIVERY=PASS
+
+CURRENT_PROMETHEUS_READY=PASS
+CURRENT_ALERTMANAGER_READY=PASS
+CURRENT_FASTAPI_TARGETS_UP=PASS
+CURRENT_ALERT_RULE_HEALTH=PASS
+CURRENT_ALERT_RULE_INACTIVE=PASS
+CURRENT_ALERTMANAGER_CLEAN=PASS
+
+DRILL_5_MONITORING_TARGET_FAILURE=PASS
+```
+
+**Drill 5 状态：SEALED。**
 
 # 8. Drill 6 — Ingress / Service / Pod 链路诊断
 
@@ -2179,106 +2972,89 @@ DRILL_4_HPA_LOAD_RECOVERY=PASS
 
 # 10. 当前阶段结论
 
-截至 Drill 4 完成，Systematic Fault Drills 当前状态为：
+截至 Drill 5 完成，Systematic Fault Drills 当前状态为：
 
-```text
+~~~text
 DRILL_1_FASTAPI_POD_SELF_HEALING=PASS
 DRILL_2_REDIS_DEPENDENCY_FAILURE=PASS
 DRILL_3_MYSQL_POD_SELF_HEALING=PASS
 DRILL_4_HPA_LOAD_RECOVERY=PASS
+DRILL_5_MONITORING_TARGET_FAILURE=PASS
 
-COMPLETED_DRILLS=4/7
-SEALED_DRILLS=4/7
+COMPLETED_DRILLS=5/7
+SEALED_DRILLS=5/7
 
-NEXT_DRILL=DRILL_5_MONITORING_TARGET_FAILURE
-```
+NEXT_DRILL=DRILL_6_INGRESS_SERVICE_POD_CHAIN_DIAGNOSIS
+~~~
 
-当前已经完成的四个 Drill 分别覆盖：
+当前已经完成的 Drill 覆盖：
 
-```text
+~~~text
 Drill 1
-FastAPI Pod Failure
-→ Deployment Self-Healing
-→ Replacement Pod Ready
+FastAPI Pod Self-Healing
 
 Drill 2
-Redis Dependency Failure
-→ Unexpected Readiness Failure
-→ RCA
-→ Timeout Budget Fix
-→ Immutable Release
-→ Same-Scenario Regression PASS
+Redis Soft Dependency Failure
++
+RCA
++
+Immutable Remediation
++
+Same-Scenario Regression
 
 Drill 3
-MySQL Pod Failure
-→ StatefulSet Self-Healing
-→ Application Authentication Failure
-→ RCA
-→ Runtime Dependency Fix
-→ Immutable Release
-→ Same-Scenario Regression PASS
+MySQL Pod Self-Healing
++
+Application Authentication Dependency Failure
++
+RCA
++
+Immutable Remediation
++
+Same-Scenario Regression
 
 Drill 4
-CPU Load
-→ HPA Scale Out
-→ maxReplicas Enforcement
-→ Load Removal
-→ Scale Down Stabilization
-→ HPA Scale In
-→ minReplicas Enforcement
-→ Business Healthy
-```
+HPA Load / Recovery
++
+Scale Out / Scale In
++
+minReplicas / maxReplicas
++
+Business Recovery
 
-其中 Drill 2 与 Drill 3 不仅验证了 Kubernetes 自愈能力，还真实经历了：
-
-```text
-Fault Injection
-  ↓
-Unexpected Failure
-  ↓
-Evidence Preservation
-  ↓
-Investigation
-  ↓
-Root Cause Analysis
-  ↓
-Minimal Remediation
-  ↓
-Versioned / Immutable Release
-  ↓
-Same-Scenario Regression
-  ↓
-PASS
-```
-
-Drill 4 则采用：
-
-```text
-Historical Evidence Reuse
+Drill 5
+Prometheus Target Failure
++
+Pending / Firing
++
+Alertmanager
++
+External Firing / Resolved Notification
 +
 Current Runtime Corroboration
-```
+~~~
 
-避免机械重复已经完成的高负载实验，在保持证据完整性的同时控制实验 blast radius。
+Systematic Fault Drills 当前进度：
 
-当前后续顺序保持不变：
+~~~text
+5 / 7
+~~~
 
-```text
-Drill 5
-Monitoring Target Failure
+剩余：
 
+~~~text
 Drill 6
 Ingress / Service / Pod Chain Diagnosis
 
 Drill 7
 Worker Node / Local PV Boundary
-```
+~~~
 
 Drill 7 仍作为风险最高的 Node-Level Validation 最后执行。
 
-全部 Drill 完成以后，再进入：
+全部 Drill 完成以后进入：
 
-```text
+~~~text
 Final SRE Validation
 ↓
 TRADITIONAL_SRE_BASELINE=PASS
@@ -2288,4 +3064,4 @@ Git Baseline Freeze / Milestone
 course-design/hermes-closed-loop
 ↓
 Hermes 智能运维阶段
-```
+~~~
