@@ -10,7 +10,7 @@ metadata:
     app.kubernetes.io/part-of: opslab-k8s
 data:
   APP_NAME: opslab-api
-  APP_VERSION: v0.3.1
+  APP_VERSION: v0.3.2
   APP_ENV: development
 
   MYSQL_HOST: opslab-mysql

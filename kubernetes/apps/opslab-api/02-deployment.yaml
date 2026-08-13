@@ -32,7 +32,7 @@ spec:
         app.kubernetes.io/instance: opslab
         app.kubernetes.io/component: backend
         app.kubernetes.io/part-of: opslab-k8s
-        app.kubernetes.io/version: v0.3.1
+        app.kubernetes.io/version: v0.3.2
 
     spec:
       automountServiceAccountToken: false
@@ -61,7 +61,7 @@ spec:
 
       containers:
         - name: opslab-api
-          image: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:81eeb46199267b97d98bcefabb7dc126a1bf255c2253e5183b604d8bc0d31fdb
+          image: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:4e268edf2609de2c5477323b104548c141999bfb2251507ed14e2f4c723135b8
           imagePullPolicy: IfNotPresent
 
           envFrom:
