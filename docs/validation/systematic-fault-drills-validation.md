@@ -1345,7 +1345,823 @@ DRILL_3_MYSQL_POD_SELF_HEALING=PASS
 
 # 6. Drill 4 — HPA Load / Recovery
 
-状态：Pending。优先复用既有 HPA 压测与扩缩容证据，必要时轻量复验。
+## 6.1 验证目标
+
+本 Drill 用于验证 FastAPI 在 CPU 负载变化下，Kubernetes HPA 能否形成完整的自动扩缩容闭环：
+
+```text
+Baseline
+  ↓
+HTTP Load
+  ↓
+CPU Utilization > Target
+  ↓
+HPA Scale Out
+  ↓
+New Pods Ready
+  ↓
+Load Removed
+  ↓
+CPU Utilization Decrease
+  ↓
+Scale Down Stabilization
+  ↓
+HPA Scale In
+  ↓
+minReplicas
+  ↓
+Business Healthy
+```
+
+本阶段不以“重新执行一次高负载测试”为目标。
+
+Repository 中已经存在完整的历史 HPA 验证：
+
+```text
+docs/validation/metrics-server-and-hpa-validation.md
+```
+
+以及负载测试脚本：
+
+```text
+scripts/hpa-load-test.sh
+```
+
+因此，本次 Systematic Fault Drill 采用：
+
+```text
+Historical Evidence Reuse
++
+Current Runtime Corroboration
+```
+
+进行验证。
+
+基本原则：
+
+```text
+已有真实证据足够
+→ 不机械重复高负载实验
+→ 只补当前状态与最终业务健康证据
+```
+
+---
+
+## 6.2 HPA 配置基线
+
+正式 HPA Manifest：
+
+```text
+kubernetes/hpa/opslab-api-hpa.yaml
+```
+
+关键配置：
+
+```text
+API: autoscaling/v2
+Target: Deployment/opslab-api
+
+minReplicas: 2
+maxReplicas: 4
+
+Metric:
+CPU Resource Utilization
+
+averageUtilization:
+60%
+```
+
+FastAPI Pod CPU Request：
+
+```text
+50m
+```
+
+HPA CPU Utilization 的基本计算关系为：
+
+```text
+CPU Utilization
+=
+Pod CPU Usage
+/
+Pod CPU Request
+×
+100%
+```
+
+因此本实验的控制目标为：
+
+```text
+Target CPU Utilization = 60%
+Replica Range = 2 ～ 4
+```
+
+验证：
+
+```text
+HPA_CONFIGURATION_BASELINE=PASS
+```
+
+---
+
+## 6.3 历史空闲基线
+
+历史 HPA 验证中，空闲状态曾观察到：
+
+```text
+cpu: 12% / 60%
+replicas: 2
+```
+
+FastAPI Pod 分布：
+
+```text
+worker1 → 1 Pod
+worker2 → 1 Pod
+```
+
+说明在低负载情况下：
+
+```text
+CPU < Target
+```
+
+同时 HPA 保持：
+
+```text
+minReplicas=2
+```
+
+作为应用基础副本数。
+
+验证：
+
+```text
+IDLE_BASELINE=PASS
+```
+
+---
+
+## 6.4 CPU Load 与 Scale Out
+
+真实 HTTP Load 实验期间，HPA 曾连续观察到：
+
+```text
+122% / 60%
+305% / 60%
+280% / 60%
+242% / 60%
+```
+
+说明：
+
+```text
+FastAPI CPU Utilization
+>
+HPA Target 60%
+```
+
+随后 HPA 自动执行扩容：
+
+```text
+2 replicas
+↓
+4 replicas
+```
+
+历史 HPA Event：
+
+```text
+SuccessfulRescale
+New size: 4
+reason:
+cpu resource utilization
+(percentage of request) above target
+```
+
+因此：
+
+```text
+CPU_ABOVE_TARGET=PASS
+HPA_SCALE_OUT=PASS
+```
+
+---
+
+## 6.5 maxReplicas 边界验证
+
+持续负载期间，即使 FastAPI 已经扩容至：
+
+```text
+4 Pods
+```
+
+CPU Utilization 仍观察到：
+
+```text
+305%
+280%
+242%
+```
+
+HPA Condition：
+
+```text
+ScalingLimited=True
+Reason=TooManyReplicas
+```
+
+Message：
+
+```text
+the desired replica count is more than
+the maximum replica count
+```
+
+实际控制过程：
+
+```text
+CPU 持续高于 Target
+        ↓
+HPA Desired Replicas > 4
+        ↓
+maxReplicas=4
+        ↓
+实际副本保持 4
+```
+
+因此：
+
+```text
+MAX_REPLICAS_ENFORCEMENT=PASS
+```
+
+这里的：
+
+```text
+ScalingLimited=True
+```
+
+并不代表 HPA 故障。
+
+在本实验中，它表示 HPA 已经根据指标计算出更高的 desired replicas，但受到 `maxReplicas=4` 的策略边界限制。
+
+---
+
+## 6.6 扩容后的 Pod 调度
+
+历史实验中，扩容后的 4 个 FastAPI Pod 全部 Ready。
+
+最终分布：
+
+```text
+worker1 → 2 Pods
+worker2 → 2 Pods
+```
+
+因此能够确认 HPA 扩容之后：
+
+```text
+HPA
+ ↓
+Deployment Replica Change
+ ↓
+ReplicaSet
+ ↓
+Scheduler
+ ↓
+topologySpreadConstraints
+ ↓
+worker1 ×2 / worker2 ×2
+```
+
+仍然能够正常工作。
+
+验证：
+
+```text
+SCALED_PODS_READY=PASS
+TOPOLOGY_SPREAD_AFTER_SCALE_OUT=PASS
+```
+
+---
+
+## 6.7 Load Removal 与 Metrics Recovery
+
+停止 HTTP Load 后，FastAPI CPU Utilization 从此前的 300% 级别下降到约：
+
+```text
+11%
+```
+
+即：
+
+```text
+High CPU Load
+↓
+Load Removed
+↓
+CPU Utilization Drops
+```
+
+Metrics Server 能够继续向 HPA 提供有效 CPU Resource Metric。
+
+因此：
+
+```text
+LOAD_REMOVAL=PASS
+METRICS_RECOVERY=PASS
+```
+
+---
+
+## 6.8 Scale Down Stabilization
+
+压力解除以后，Deployment 并没有立即：
+
+```text
+4 → 2
+```
+
+而是观察到：
+
+```text
+AbleToScale=True
+Reason=ScaleDownStabilized
+```
+
+Message：
+
+```text
+recent recommendations were higher than
+current one, applying the highest recent
+recommendation
+```
+
+说明 HPA 在缩容时不会因为单次低负载采样立即删除 Pod，而是通过 Scale Down Stabilization 降低副本数量快速上下波动的风险。
+
+控制过程表现为：
+
+```text
+High Load
+↓
+Scale Out
+↓
+Load Removed
+↓
+CPU Drops
+↓
+Scale Down Stabilization
+↓
+Scale In
+```
+
+验证：
+
+```text
+SCALE_DOWN_STABILIZATION=PASS
+```
+
+---
+
+## 6.9 Scale In 与 minReplicas
+
+经过稳定阶段以后，HPA 自动完成：
+
+```text
+4 replicas
+↓
+2 replicas
+```
+
+历史 Event：
+
+```text
+SuccessfulRescale
+New size: 2
+reason:
+All metrics below target
+```
+
+低负载状态还曾观察到：
+
+```text
+ScalingLimited=True
+Reason=TooFewReplicas
+```
+
+说明：
+
+```text
+CPU 低于 Target
+        ↓
+理论 Desired Replicas < 2
+        ↓
+minReplicas=2
+        ↓
+实际保持 2 Pods
+```
+
+因此：
+
+```text
+HPA_SCALE_IN=PASS
+MIN_REPLICAS_ENFORCEMENT=PASS
+```
+
+最终恢复：
+
+```text
+worker1 → 1 Pod
+worker2 → 1 Pod
+```
+
+重新获得基础的跨 Worker 应用副本冗余。
+
+---
+
+## 6.10 当前 Runtime 交叉验证
+
+本次 Drill 没有重新运行高负载测试。
+
+首先对当前 Kubernetes Runtime 进行了检查。
+
+当前 HPA：
+
+```text
+TARGETS:
+cpu: 13% / 60%
+
+MINPODS:
+2
+
+MAXPODS:
+4
+
+REPLICAS:
+2
+```
+
+当前两个 FastAPI Pod：
+
+```text
+worker1:
+1/1 Running
+RESTARTS=0
+
+worker2:
+1/1 Running
+RESTARTS=0
+```
+
+说明当前系统已经重新收敛至：
+
+```text
+Low CPU Load
+↓
+2 Replicas
+↓
+worker1 ×1
+worker2 ×1
+```
+
+此前同一次 Runtime Audit 中还观察到：
+
+```text
+AbleToScale=True
+Reason=ScaleDownStabilized
+
+ScalingActive=True
+Reason=ValidMetricFound
+
+ScalingLimited=False
+Reason=DesiredWithinRange
+```
+
+其中：
+
+```text
+ScalingActive=True
+Reason=ValidMetricFound
+```
+
+证明 HPA 当前仍然能够获取有效的 CPU Resource Metric 并计算 desired replicas。
+
+同时，当前 HPA Events 中仍保留：
+
+```text
+New size: 3
+reason:
+cpu resource utilization above target
+
+New size: 4
+reason:
+cpu resource utilization above target
+
+New size: 3
+reason:
+All metrics below target
+
+New size: 2
+reason:
+All metrics below target
+```
+
+形成新的 Runtime 佐证：
+
+```text
+CPU Above Target
+↓
+Scale Out
+↓
+3
+↓
+4
+↓
+Metrics Below Target
+↓
+Scale In
+↓
+3
+↓
+2
+```
+
+因此：
+
+```text
+CURRENT_HPA_RUNTIME=PASS
+CURRENT_REPLICA_CONVERGENCE=PASS
+```
+
+---
+
+## 6.11 最终业务健康验证
+
+HPA 已经恢复至：
+
+```text
+replicas=2
+```
+
+随后通过 worker1 上的 NGINX Ingress 进行最终业务检查。
+
+### 6.11.1 Liveness
+
+请求：
+
+```text
+GET /healthz
+```
+
+返回：
+
+```json
+{"status":"ok"}
+```
+
+HTTP：
+
+```text
+200
+```
+
+验证：
+
+```text
+FINAL_HEALTHZ=PASS
+```
+
+### 6.11.2 Readiness
+
+请求：
+
+```text
+GET /readyz
+```
+
+返回：
+
+```json
+{
+  "status": "ready",
+  "mysql": "ok",
+  "redis": "ok"
+}
+```
+
+HTTP：
+
+```text
+200
+```
+
+验证：
+
+```text
+FINAL_READYZ=PASS
+```
+
+这同时证明最终状态下：
+
+```text
+FastAPI = healthy
+MySQL = ok
+Redis = ok
+```
+
+### 6.11.3 Business Read
+
+请求：
+
+```text
+GET /api/v1/events/1
+```
+
+返回：
+
+```json
+{
+  "id": 1,
+  "message": "fastapi-mysql-write-read-ok",
+  "created_at": "2026-08-08T15:49:47.595942"
+}
+```
+
+HTTP：
+
+```text
+200
+```
+
+该验证不仅证明 Pod 处于 Ready，还真实经过：
+
+```text
+Client
+  ↓
+NGINX Ingress
+  ↓
+Service
+  ↓
+EndpointSlice / Pod
+  ↓
+FastAPI
+  ↓
+MySQL
+  ↓
+Business Response
+```
+
+最终：
+
+```text
+FINAL_BUSINESS_HEALTH=PASS
+```
+
+---
+
+## 6.12 Evidence Reuse 决策
+
+Drill 4 开始前首先进行了 Repository Evidence Audit。
+
+确认已经存在：
+
+```text
+kubernetes/hpa/opslab-api-hpa.yaml
+scripts/hpa-load-test.sh
+docs/validation/metrics-server-and-hpa-validation.md
+```
+
+历史验证已经真实覆盖：
+
+```text
+HTTP Load
+→ CPU > 60%
+→ HPA 2 → 4
+→ maxReplicas
+→ New Pods Ready
+→ Topology Spread
+→ Load Removal
+→ CPU Recovery
+→ ScaleDownStabilized
+→ HPA 4 → 2
+→ minReplicas
+```
+
+本轮 Systematic Fault Drill 又补充：
+
+```text
+Current HPA Runtime
++
+Current Pod State
++
+Current HPA Events
++
+Ingress Health Check
++
+Readiness Dependency Check
++
+Real Business Read
+```
+
+因此重新执行高 CPU 压测不会显著增加新的有效证据，反而会增加不必要的实验扰动和 blast radius。
+
+本 Drill 最终采用：
+
+```text
+EVIDENCE_REUSE
++
+TARGETED_CORROBORATION
+```
+
+而不是：
+
+```text
+MECHANICAL_RETEST
+```
+
+这一决策符合本项目故障演练原则：
+
+```text
+已有真实证据优先复用
+↓
+审计证据完整性
+↓
+只补缺失证据
+↓
+避免无意义重复故障注入
+```
+
+---
+
+## 6.13 Drill 4 最终证据链
+
+```text
+Idle Baseline
+      ↓
+HTTP Load
+      ↓
+CPU > 60% Target
+      ↓
+HPA Scale Out
+      ↓
+2 → 4 Replicas
+      ↓
+maxReplicas=4
+      ↓
+4 Pods Ready
+      ↓
+worker1 ×2 / worker2 ×2
+      ↓
+Load Removed
+      ↓
+CPU Drops
+      ↓
+ScaleDownStabilized
+      ↓
+HPA Scale In
+      ↓
+4 → 2 Replicas
+      ↓
+minReplicas=2
+      ↓
+worker1 ×1 / worker2 ×1
+      ↓
+/healthz HTTP 200
+      ↓
+/readyz HTTP 200
+      ↓
+Business Read HTTP 200
+```
+
+最终判定：
+
+```text
+DRILL4_EVIDENCE_DECISION=REUSE
+HPA_LOAD_RETEST=NOT_REQUIRED
+
+HPA_CONFIGURATION_BASELINE=PASS
+IDLE_BASELINE=PASS
+CPU_ABOVE_TARGET=PASS
+HPA_SCALE_OUT=PASS
+MAX_REPLICAS_ENFORCEMENT=PASS
+SCALED_PODS_READY=PASS
+TOPOLOGY_SPREAD_AFTER_SCALE_OUT=PASS
+LOAD_REMOVAL=PASS
+METRICS_RECOVERY=PASS
+SCALE_DOWN_STABILIZATION=PASS
+HPA_SCALE_IN=PASS
+MIN_REPLICAS_ENFORCEMENT=PASS
+CURRENT_HPA_RUNTIME=PASS
+CURRENT_REPLICA_CONVERGENCE=PASS
+FINAL_HEALTHZ=PASS
+FINAL_READYZ=PASS
+FINAL_BUSINESS_HEALTH=PASS
+
+DRILL_4_HPA_LOAD_RECOVERY=PASS
+```
+
+**Drill 4 状态：SEALED。**
 
 # 7. Drill 5 — Monitoring Target Failure
 
@@ -1363,34 +2179,113 @@ DRILL_3_MYSQL_POD_SELF_HEALING=PASS
 
 # 10. 当前阶段结论
 
+截至 Drill 4 完成，Systematic Fault Drills 当前状态为：
+
 ```text
 DRILL_1_FASTAPI_POD_SELF_HEALING=PASS
 DRILL_2_REDIS_DEPENDENCY_FAILURE=PASS
-COMPLETED_DRILLS=2/7
-SEALED_DRILLS=2/7
+DRILL_3_MYSQL_POD_SELF_HEALING=PASS
+DRILL_4_HPA_LOAD_RECOVERY=PASS
+
+COMPLETED_DRILLS=4/7
+SEALED_DRILLS=4/7
+
+NEXT_DRILL=DRILL_5_MONITORING_TARGET_FAILURE
 ```
 
-Drill 2 已形成一次完整 SRE 闭环：
+当前已经完成的四个 Drill 分别覆盖：
+
+```text
+Drill 1
+FastAPI Pod Failure
+→ Deployment Self-Healing
+→ Replacement Pod Ready
+
+Drill 2
+Redis Dependency Failure
+→ Unexpected Readiness Failure
+→ RCA
+→ Timeout Budget Fix
+→ Immutable Release
+→ Same-Scenario Regression PASS
+
+Drill 3
+MySQL Pod Failure
+→ StatefulSet Self-Healing
+→ Application Authentication Failure
+→ RCA
+→ Runtime Dependency Fix
+→ Immutable Release
+→ Same-Scenario Regression PASS
+
+Drill 4
+CPU Load
+→ HPA Scale Out
+→ maxReplicas Enforcement
+→ Load Removal
+→ Scale Down Stabilization
+→ HPA Scale In
+→ minReplicas Enforcement
+→ Business Healthy
+```
+
+其中 Drill 2 与 Drill 3 不仅验证了 Kubernetes 自愈能力，还真实经历了：
 
 ```text
 Fault Injection
   ↓
 Unexpected Failure
   ↓
-Evidence Collection
+Evidence Preservation
+  ↓
+Investigation
   ↓
 Root Cause Analysis
   ↓
 Minimal Remediation
   ↓
-Immutable Image Release
+Versioned / Immutable Release
   ↓
-RollingUpdate
-  ↓
-Same-Scenario Regression Test
+Same-Scenario Regression
   ↓
 PASS
 ```
 
+Drill 4 则采用：
 
+```text
+Historical Evidence Reuse
++
+Current Runtime Corroboration
+```
 
+避免机械重复已经完成的高负载实验，在保持证据完整性的同时控制实验 blast radius。
+
+当前后续顺序保持不变：
+
+```text
+Drill 5
+Monitoring Target Failure
+
+Drill 6
+Ingress / Service / Pod Chain Diagnosis
+
+Drill 7
+Worker Node / Local PV Boundary
+```
+
+Drill 7 仍作为风险最高的 Node-Level Validation 最后执行。
+
+全部 Drill 完成以后，再进入：
+
+```text
+Final SRE Validation
+↓
+TRADITIONAL_SRE_BASELINE=PASS
+↓
+Git Baseline Freeze / Milestone
+↓
+course-design/hermes-closed-loop
+↓
+Hermes 智能运维阶段
+```
