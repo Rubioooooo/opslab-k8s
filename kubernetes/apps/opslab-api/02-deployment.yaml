@@ -61,7 +61,7 @@ spec:
 
       containers:
         - name: opslab-api
-          image: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:159496a050ac4c4dacf222b4e071b73ba4b8d7bc9f93436245d5f0dcf1ce1df4
+          image: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:81eeb46199267b97d98bcefabb7dc126a1bf255c2253e5183b604d8bc0d31fdb
           imagePullPolicy: IfNotPresent
 
           envFrom:
