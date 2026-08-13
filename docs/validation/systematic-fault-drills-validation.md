@@ -2,7 +2,7 @@
 
 > 项目：基于 kubeadm 的 Kubernetes 云原生应用部署与 SRE 稳定性实践
 > 文档类型：Systematic Fault Drills 统一验证报告
-> 状态：进行中（Drill 1、Drill 2、Drill 3 已完成并封存；Drill 4～7 待执行）
+> 状态：Systematic Fault Drills 已完成并封存（7/7）；下一阶段：Final SRE Validation
 > 更新日期：2026-08-13
 
 ---
@@ -23,7 +23,7 @@
 | Drill 4 | HPA Load / Recovery | SEALED | PASS |
 | Drill 5 | Monitoring Target Failure | SEALED | PASS（复用历史真实告警证据并完成当前 Runtime 交叉验证） |
 | Drill 6 | Ingress / Service / Pod 链路诊断 | SEALED | PASS（Service selector mismatch → EndpointSlice 后端清空 → Ingress 502 → 恢复后自动重建） |
-| Drill 7 | Worker Node / Local PV Boundary | Pending | 最后执行，高风险 |
+| Drill 7 | Worker Node / Local PV Boundary | SEALED | PASS（Worker reboot → Node Recovery → Local PV 同节点持久性 → HPA/Topology placement drift → 最小修复恢复 1+1） |
 
 ---
 
@@ -3732,13 +3732,1225 @@ DRILL6_RESULT=PASS
 
 # 9. Drill 7 — Worker Node / Local PV Boundary
 
-状态：Pending，最后执行。验证 Worker 正常 reboot 后 Node 恢复与 Local PV 同节点数据持久性，并明确 Local PV 不等于跨节点 Storage HA。
+## 9.1 实验状态
+
+**Drill 7 状态：SEALED。**
+
+最终结论：
+
+~~~text
+DRILL7_READ_ONLY_BASELINE=PASS
+DRILL7_HOST_RECOVERY_SAFETY_GATE=PASS
+DRILL7_OBSERVATION_PLANE=PASS
+
+DRILL7_CONTROLLED_WORKER1_REBOOT=PASS
+DRILL7_NODE_FAILURE_OBSERVED=PASS
+DRILL7_NODE_READY_UNKNOWN_OBSERVED=PASS
+DRILL7_NODE_RECOVERY=PASS
+
+DRILL7_MYSQL_DEPENDENCY_IMPACT=OBSERVED
+DRILL7_ENDPOINT_CONTRACTION=OBSERVED
+DRILL7_TRANSIENT_CNI_RECOVERY_ORDERING=OBSERVED
+
+DRILL7_LOCAL_PV_SAME_NODE_PERSISTENCE=PASS
+DRILL7_DIRECT_MYSQL_DATA_VERIFICATION=PASS
+
+DRILL7_CROSS_NODE_STORAGE_HA=NOT_TESTED
+DRILL7_CROSS_NODE_STORAGE_HA=NOT_CLAIMED
+
+DRILL7_POST_RECOVERY_HPA_SCALE_UP=OBSERVED
+DRILL7_POST_RECOVERY_HPA_SCALE_DOWN=OBSERVED
+DRILL7_PLACEMENT_DRIFT=OBSERVED
+DRILL7_PLACEMENT_DRIFT_REMEDIATION=PASS
+
+DRILL7_RUNTIME_VALIDATION=PASS
+DRILL7_FINAL_VERDICT=PASS
+~~~
+
+本 Drill 使用一次受控 `k8s-worker1` OS reboot 作为真实 Node-Level Fault。
+
+实验验证的核心不是“节点重启后所有工作负载都会自动迁移到其他节点”，而是分别验证：
+
+~~~text
+1. Kubernetes 是否真实检测到 Worker Node 不可用并在节点恢复后重新收敛；
+
+2. MySQL Local PV 在 owning node 正常 reboot 后是否能够重新挂载并保留原数据；
+
+3. Local PV 的持久化能力边界是否被正确区分于 Cross-Node Storage HA；
+
+4. worker1 故障后 MySQL HARD dependency 如何向 FastAPI readiness / business path 传播；
+
+5. 节点恢复阶段 CNI、Pod Sandbox、Container、Readiness 是否存在恢复顺序差异；
+
+6. 节点恢复产生的负载变化是否会再次触发 HPA；
+
+7. HPA scale-down 后是否可能出现 topology placement drift；
+
+8. 通过最小 Pod replacement 后，TopologySpreadConstraints 是否能够重新作用于新 Pod 调度。
+~~~
+
+---
+
+## 9.2 实验前风险边界
+
+Drill 7 是全部 Systematic Fault Drills 中 blast radius 最大的一项。
+
+故障对象：
+
+~~~text
+k8s-worker1
+192.168.8.11
+~~~
+
+实验前确认 worker1 同时承载：
+
+~~~text
+Flannel
+kube-proxy
+node-exporter
+NGINX Ingress Controller
+
+FastAPI replica × 1
+MySQL
+mysqld-exporter
+redis-exporter
+~~~
+
+因此本 Drill 不采用：
+
+~~~text
+kubeadm reset
+kubectl drain
+iptables flush
+CNI reinstall
+namespace deletion
+PVC / PV deletion
+/data/mysql deletion
+manual EndpointSlice modification
+arbitrary rollout restart
+~~~
+
+故障模型最终选择：
+
+~~~text
+FAULT_MODEL=CONTROLLED_WORKER1_REBOOT
+~~~
+
+目的是制造真实 Node-Level interruption，同时保证节点能够以正常 OS reboot 方式重新启动。
+
+---
+
+## 9.3 Local PV 故障前约束链
+
+实验前首先建立 MySQL Storage Boundary。
+
+MySQL Pod：
+
+~~~text
+opslab-mysql-0
+NODE=k8s-worker1
+READY=true
+RESTARTS=0
+~~~
+
+PVC：
+
+~~~text
+PVC=opslab-mysql-data
+STATUS=Bound
+VOLUME=opslab-mysql-local-pv
+STORAGE_CLASS=local-storage
+ACCESS_MODE=ReadWriteOnce
+~~~
+
+PV：
+
+~~~text
+PV=opslab-mysql-local-pv
+STATUS=Bound
+RECLAIM_POLICY=Retain
+
+LOCAL_PATH=/data/mysql
+
+NODE_AFFINITY:
+kubernetes.io/hostname
+In
+[k8s-worker1]
+~~~
+
+StatefulSet 中：
+
+~~~text
+opslab-mysql-data
+        ↓
+mysql-data volume
+        ↓
+/var/lib/mysql
+~~~
+
+因此完整关系为：
+
+~~~text
+opslab-mysql-0
+        ↓
+PVC: opslab-mysql-data
+        ↓
+PV: opslab-mysql-local-pv
+        ↓
+local.path=/data/mysql
+        ↓
+nodeAffinity
+        ↓
+k8s-worker1
+~~~
+
+这一约束链意味着：
+
+~~~text
+Local PV persistence
+        ≠
+Cross-Node Storage HA
+~~~
+
+---
+
+## 9.4 Host Recovery Safety Gate
+
+在执行 reboot 前验证 worker1 具备可靠的自动恢复条件。
+
+SSH：
+
+~~~text
+k8s-worker1 reachable
+~~~
+
+核心服务：
+
+~~~text
+kubelet:
+enabled
+active
+
+containerd:
+enabled
+active
+~~~
+
+MySQL 数据盘：
+
+~~~text
+TARGET=/data/mysql
+SOURCE=/dev/sdb1
+FSTYPE=xfs
+~~~
+
+容量：
+
+~~~text
+/dev/sdb1
+20G
+/data/mysql
+~~~
+
+`/etc/fstab` 中存在持久挂载：
+
+~~~text
+UUID=b41b131b-6fae-438e-9754-f30fb2a7ec37
+/data/mysql
+xfs
+defaults
+~~~
+
+因此：
+
+~~~text
+DRILL7_HOST_RECOVERY_SAFETY_GATE=PASS
+~~~
+
+---
+
+## 9.5 故障前应用基线
+
+实验前 FastAPI 两副本跨节点分布：
+
+~~~text
+worker1:
+10.244.1.57
+
+worker2:
+10.244.2.69
+~~~
+
+EndpointSlice：
+
+~~~text
+10.244.1.57
+10.244.2.69
+~~~
+
+业务健康：
+
+~~~text
+/healthz
+HTTP 200
+
+/readyz
+HTTP 200
+mysql=ok
+redis=ok
+
+/api/v1/events/1
+HTTP 200
+
+id=1
+message=fastapi-mysql-write-read-ok
+~~~
+
+因此：
+
+~~~text
+DRILL7_PRE_FAULT_APPLICATION_BASELINE=PASS
+~~~
+
+---
+
+## 9.6 受控 Worker Node Reboot
+
+第一次尝试使用非交互 sudo：
+
+~~~text
+sudo: a password is required
+SSH_COMMAND_RC=1
+~~~
+
+该操作未产生 Node Fault：
+
+~~~text
+FIRST_REBOOT_ATTEMPT=NOT_EXECUTED
+RUNTIME_CHANGE=NONE
+~~~
+
+随后使用交互式 sudo 正式执行：
+
+~~~text
+2026-08-13T13:05:24Z
+
+sudo systemctl reboot
+~~~
+
+系统返回：
+
+~~~text
+The system will reboot now!
+Connection to 192.168.8.11 closed.
+
+SSH_COMMAND_RC=0
+~~~
+
+因此：
+
+~~~text
+DRILL7_CONTROLLED_WORKER1_REBOOT=PASS
+~~~
+
+---
+
+## 9.7 Kubernetes Node Failure Detection
+
+reboot 后，Node 状态首先仍短暂保持最后一次已知状态：
+
+~~~text
+Ready=True
+~~~
+
+随后控制面观察到：
+
+~~~text
+2026-08-13T13:06:12Z
+
+k8s-worker1
+Ready=Unknown
+
+MemoryPressure=Unknown
+DiskPressure=Unknown
+PIDPressure=Unknown
+
+reason=NodeStatusUnknown
+~~~
+
+证明 Kubernetes 已真实检测到 Node heartbeat 丢失。
+
+随后：
+
+~~~text
+2026-08-13T13:08:05Z
+
+k8s-worker1
+Ready=True
+reason=KubeletReady
+~~~
+
+因此：
+
+~~~text
+Ready=True
+    ↓
+controlled reboot
+    ↓
+Ready=Unknown
+    ↓
+node recovery
+    ↓
+Ready=True
+~~~
+
+最终：
+
+~~~text
+DRILL7_NODE_FAILURE_OBSERVED=PASS
+DRILL7_NODE_READY_UNKNOWN_OBSERVED=PASS
+DRILL7_NODE_RECOVERY=PASS
+~~~
+
+---
+
+## 9.8 Pod 状态与 Endpoint 收敛
+
+节点刚开始不可用时，API Server 中 worker1 Pod 一度仍显示：
+
+~~~text
+1/1 Running
+old Pod IP
+~~~
+
+这只是控制面中的 Last Known State，并不能证明节点上的容器此刻仍实际运行。
+
+随后状态收敛为：
+
+~~~text
+worker1 FastAPI:
+0/1 Unknown
+
+MySQL:
+0/1 Unknown
+
+mysqld-exporter:
+0/1 Unknown
+
+redis-exporter:
+0/1 Unknown
+~~~
+
+同时 FastAPI EndpointSlice 从：
+
+~~~text
+10.244.1.57
+10.244.2.69
+~~~
+
+收缩为：
+
+~~~text
+10.244.2.69
+~~~
+
+因此：
+
+~~~text
+NODE_UNAVAILABLE
+        ↓
+WORKER1_POD_HEALTH_LOST
+        ↓
+FASTAPI_ENDPOINT_REMOVED
+~~~
+
+结论：
+
+~~~text
+DRILL7_ENDPOINT_CONTRACTION=OBSERVED
+~~~
+
+---
+
+## 9.9 MySQL HARD Dependency 故障传播
+
+worker1 reboot 后，worker2 上 FastAPI 进程仍存在，但 MySQL 位于 worker1。
+
+早期业务观测：
+
+~~~text
+2026-08-13T13:05:32Z
+
+/healthz
+HTTP 200
+
+/readyz
+HTTP 503
+
+status=not_ready
+mysql=error
+redis=ok
+
+/api/v1/events/1
+HTTP 200
+~~~
+
+该时刻业务读取虽然观察到 HTTP 200，但本实验没有取得足够证据证明该请求具体命中了 MySQL 还是其他已有业务路径，因此只记录真实 HTTP 结果，不对原因做超范围推断。
+
+随后：
+
+~~~text
+/readyz
+timeout
+
+/api/v1/events/1
+timeout
+~~~
+
+再之后：
+
+~~~text
+/healthz
+/readyz
+/api/v1/events/1
+
+均出现 timeout / 5xx
+~~~
+
+这说明：
+
+~~~text
+worker2 Node Healthy
+        ≠
+FastAPI Dependency Ready
+~~~
+
+并进一步证明：
+
+~~~text
+Process Health
+        ≠
+Dependency Readiness
+        ≠
+End-to-End Availability
+~~~
+
+最终：
+
+~~~text
+DRILL7_MYSQL_DEPENDENCY_IMPACT=OBSERVED
+~~~
+
+---
+
+## 9.10 Node 恢复阶段的 CNI Ordering
+
+worker1 恢复后，Kubernetes Events 捕获到多个 Pod Sandbox 临时创建失败：
+
+~~~text
+FailedCreatePodSandBox
+
+plugin type="flannel" failed (add)
+
+failed to load flannel 'subnet.env' file
+
+open /run/flannel/subnet.env:
+no such file or directory
+~~~
+
+受影响对象包括：
+
+~~~text
+opslab-mysql-0
+worker1 FastAPI
+mysqld-exporter
+redis-exporter
+~~~
+
+随后 Flannel runtime state 恢复，Pod Sandbox 和 containers 均自动重新创建。
+
+未进行：
+
+~~~text
+CNI reinstall
+manual kubelet restart
+manual containerd restart
+Pod force deletion
+~~~
+
+因此该现象记录为：
+
+~~~text
+TRANSIENT_CNI_RECOVERY_ORDERING=OBSERVED
+SELF_RECOVERED=YES
+MANUAL_REMEDIATION=NO
+~~~
+
+这证明：
+
+~~~text
+Node Ready=True
+        ≠
+All Workloads Ready Immediately
+~~~
+
+Node、CNI、Pod Sandbox、Container、Startup Probe、Readiness Probe 的恢复存在时间顺序。
+
+---
+
+## 9.11 MySQL Same-Node Local PV Recovery
+
+worker1 恢复后：
+
+~~~text
+POD=opslab-mysql-0
+
+UID=
+b4b31e01-b32c-4f6c-a5c8-1f9e88acca54
+
+NODE=k8s-worker1
+
+POD_IP=10.244.1.60
+
+READY=true
+
+RESTARTS=1
+~~~
+
+Pod object UID 保持不变，但 container restart count：
+
+~~~text
+0 → 1
+~~~
+
+Pod IP：
+
+~~~text
+10.244.1.59
+        ↓
+10.244.1.60
+~~~
+
+说明节点恢复后原 Pod object 继续存在，而 container / Pod Sandbox 在 worker1 上重新建立。
+
+---
+
+## 9.12 Local PV 重挂载验证
+
+reboot 后磁盘仍为：
+
+~~~text
+/data/mysql
+        ↓
+/dev/sdb1
+        ↓
+XFS
+~~~
+
+PVC：
+
+~~~text
+opslab-mysql-data
+STATUS=Bound
+PV=opslab-mysql-local-pv
+~~~
+
+PV：
+
+~~~text
+opslab-mysql-local-pv
+STATUS=Bound
+RECLAIM_POLICY=Retain
+
+PATH=/data/mysql
+NODE=k8s-worker1
+CLAIM=opslab/opslab-mysql-data
+~~~
+
+因此原 Local PV 没有发生替换。
+
+---
+
+## 9.13 Direct MySQL Persistent Data Verification
+
+为排除 FastAPI 或 Redis 路径对验证结果的影响，恢复后直接进入 MySQL 查询：
+
+~~~text
+SELECT id,message
+FROM opslab.opslab_events
+WHERE id=1;
+~~~
+
+返回：
+
+~~~text
+1    fastapi-mysql-write-read-ok
+~~~
+
+因此完整证据链为：
+
+~~~text
+worker1 reboot
+        ↓
+/dev/sdb1 survives
+        ↓
+/data/mysql remounted
+        ↓
+same Local PV remains Bound
+        ↓
+same PVC remains Bound
+        ↓
+MySQL container restarts on worker1
+        ↓
+existing database files reused
+        ↓
+id=1 still exists
+~~~
+
+最终：
+
+~~~text
+DRILL7_LOCAL_PV_SAME_NODE_PERSISTENCE=PASS
+DRILL7_DIRECT_MYSQL_DATA_VERIFICATION=PASS
+~~~
+
+---
+
+## 9.14 Local PV 能力边界
+
+本实验只证明：
+
+~~~text
+Local PV survives normal reboot
+of the node that physically owns the storage
+~~~
+
+本实验没有证明：
+
+~~~text
+worker1 permanently lost
+        ↓
+MySQL rescheduled to worker2
+        ↓
+same /data/mysql data remains available
+~~~
+
+实际上 PV 明确存在：
+
+~~~text
+nodeAffinity:
+k8s-worker1
+~~~
+
+因此该 Storage Model 不具备本实验意义上的自动 Cross-Node Storage HA。
+
+最终边界必须写为：
+
+~~~text
+LOCAL_PV_SAME_NODE_PERSISTENCE=PASS
+
+CROSS_NODE_STORAGE_HA=NOT_TESTED
+CROSS_NODE_STORAGE_HA=NOT_CLAIMED
+~~~
+
+不得将：
+
+~~~text
+same-node persistence
+~~~
+
+描述为：
+
+~~~text
+cross-node storage high availability
+~~~
+
+---
+
+## 9.15 End-to-End Recovery
+
+恢复过程中一度观察到：
+
+~~~text
+/healthz
+HTTP 502
+
+/readyz
+HTTP 502
+
+/api/v1/events/1
+HTTP 502
+~~~
+
+随后：
+
+~~~text
+2026-08-13T13:08:25Z
+
+/healthz
+HTTP 200
+
+/readyz
+HTTP 200
+mysql=ok
+redis=ok
+
+/api/v1/events/1
+HTTP 200
+
+id=1
+message=fastapi-mysql-write-read-ok
+~~~
+
+说明：
+
+~~~text
+Node Recovery
+        ↓
+CNI Recovery
+        ↓
+MySQL Recovery
+        ↓
+FastAPI Dependency Recovery
+        ↓
+Endpoint Recovery
+        ↓
+End-to-End HTTP Recovery
+~~~
+
+本实验记录的是实际 observed recovery window，不将其直接声明为精确 SLA / RTO。
+
+---
+
+## 9.16 Node Recovery 后的 HPA 行为
+
+worker1 workload 恢复后，FastAPI HPA 再次观察到 CPU utilization 超过目标。
+
+HPA 配置：
+
+~~~text
+minReplicas=2
+maxReplicas=4
+CPU target=60%
+~~~
+
+事件：
+
+~~~text
+SuccessfulRescale
+
+New size: 4
+
+reason:
+cpu resource utilization
+above target
+~~~
+
+Deployment：
+
+~~~text
+2 → 4
+~~~
+
+新 Pod 分别调度到：
+
+~~~text
+worker1 × 1
+worker2 × 1
+~~~
+
+加上原有副本后形成：
+
+~~~text
+worker1 = 2
+worker2 = 2
+~~~
+
+说明恢复阶段 HPA 与 Scheduler / TopologySpread 仍能正常工作。
+
+随后 metrics 下降：
+
+~~~text
+SuccessfulRescale
+
+New size: 2
+
+reason:
+All metrics below target
+~~~
+
+因此：
+
+~~~text
+DRILL7_POST_RECOVERY_HPA_SCALE_UP=OBSERVED
+DRILL7_POST_RECOVERY_HPA_SCALE_DOWN=OBSERVED
+~~~
+
+该现象同时作为 Drill 4 HPA 行为的一次独立 Runtime Corroboration，不重新执行 Drill 4。
+
+---
+
+## 9.17 HPA Scale-Down Placement Drift
+
+HPA 从：
+
+~~~text
+4 → 2
+~~~
+
+缩容时，ReplicaSet 最终删除的是 worker1 上的两个 FastAPI Pod。
+
+缩容后留下：
+
+~~~text
+worker1:
+0 FastAPI
+
+worker2:
+2 FastAPI
+~~~
+
+Deployment 和业务此时仍正常：
+
+~~~text
+Deployment=2/2
+HPA replicas=2
+
+/healthz=200
+/readyz=200
+~~~
+
+但节点级高可用分布发生退化：
+
+~~~text
+FASTAPI_PLACEMENT:
+1 + 1
+        ↓
+2 + 2
+        ↓
+0 + 2
+~~~
+
+这说明：
+
+~~~text
+TopologySpreadConstraints
+主要约束新 Pod 的调度决策
+
+而不是一个持续运行的
+existing Pod rebalance controller
+~~~
+
+因此记录：
+
+~~~text
+POST_HPA_SCALE_DOWN_PLACEMENT_DRIFT=OBSERVED
+~~~
+
+---
+
+## 9.18 Placement Drift 最小修复
+
+确认：
+
+~~~text
+worker1=Ready
+worker1=Schedulable
+
+FastAPI desired=2
+FastAPI ready=2
+
+HPA:
+CPU=8% / 60%
+replicas=2
+
+TopologySpread:
+maxSkew=1
+topologyKey=kubernetes.io/hostname
+whenUnsatisfiable=DoNotSchedule
+~~~
+
+后，仅删除 worker2 上一个 FastAPI Pod：
+
+~~~text
+opslab-api-797c8fdfbf-2klm9
+NODE=k8s-worker2
+~~~
+
+Deployment 自动创建 replacement：
+
+~~~text
+opslab-api-797c8fdfbf-km26v
+~~~
+
+Scheduler 立即将 replacement 分配至：
+
+~~~text
+k8s-worker1
+~~~
+
+随后：
+
+~~~text
+opslab-api-797c8fdfbf-km26v
+1/1 Running
+10.244.1.66
+k8s-worker1
+
+opslab-api-797c8fdfbf-zwmzk
+1/1 Running
+10.244.2.69
+k8s-worker2
+~~~
+
+最终：
+
+~~~text
+worker1 = 1
+worker2 = 1
+~~~
+
+EndpointSlice：
+
+~~~text
+10.244.1.66
+10.244.2.69
+~~~
+
+业务验证：
+
+~~~text
+/healthz
+HTTP 200
+
+/readyz
+HTTP 200
+mysql=ok
+redis=ok
+
+/api/v1/events/1
+HTTP 200
+~~~
+
+HPA：
+
+~~~text
+replicas=2
+CPU below target
+~~~
+
+因此：
+
+~~~text
+DRILL7_PLACEMENT_DRIFT_REMEDIATION=PASS
+TOPOLOGY_SPREAD_RECONCILIATION_ON_NEW_POD=PASS
+FASTAPI_PLACEMENT_RESTORED=PASS
+~~~
+
+该修复没有修改 Deployment、HPA 或 topology constraints，只通过一次最小 Pod replacement 触发新的 Scheduler 决策。
+
+---
+
+## 9.19 RCA / System Boundary
+
+本 Drill 不存在一个单一“软件 bug”，而是验证并暴露了多个真实系统边界。
+
+### Boundary A — Local PV
+
+~~~text
+Local PV
+provides node-local persistent storage
+
+but
+
+Local PV
+does not automatically provide
+cross-node storage HA
+~~~
+
+### Boundary B — Node Recovery
+
+~~~text
+Node Ready=True
+        ≠
+CNI Ready
+        ≠
+Pod Sandbox Ready
+        ≠
+Container Ready
+        ≠
+Application Ready
+~~~
+
+### Boundary C — HARD Dependency
+
+~~~text
+FastAPI process alive
+        ≠
+FastAPI readiness healthy
+
+when MySQL HARD dependency
+is unavailable
+~~~
+
+### Boundary D — Topology Spread
+
+~~~text
+TopologySpread
+controls placement when Pod is scheduled
+
+but
+
+does not continuously move
+existing Pods to restore balance
+~~~
+
+### Boundary E — HPA
+
+~~~text
+HPA controls desired replica count
+
+but
+
+does not guarantee which exact Pods
+ReplicaSet deletes during scale-down
+~~~
+
+---
+
+## 9.20 SRE 工程价值
+
+Drill 7 最终形成的证据链：
+
+~~~text
+Healthy Baseline
+        ↓
+Controlled Worker1 Reboot
+        ↓
+Node Heartbeat Lost
+        ↓
+Ready=Unknown
+        ↓
+MySQL HARD Dependency Failure
+        ↓
+FastAPI Readiness / Business Impact
+        ↓
+FastAPI Endpoint Contraction
+        ↓
+Worker1 Returns
+        ↓
+Transient Flannel Recovery Ordering
+        ↓
+Pod Sandbox / Container Recovery
+        ↓
+MySQL Same-Node Local PV Remount
+        ↓
+Direct Persistent Data Verification
+        ↓
+End-to-End Business Recovery
+        ↓
+Recovery Load Triggers HPA 2→4
+        ↓
+HPA Scale-Down 4→2
+        ↓
+Placement Drift 0+2
+        ↓
+Minimal Pod Replacement
+        ↓
+TopologySpread Rescheduling
+        ↓
+Final Placement 1+1
+~~~
+
+该 Drill 证明项目不仅能够执行“节点重启测试”，而且能够从：
+
+~~~text
+Node
+Storage
+CNI
+Pod Sandbox
+Container
+Readiness
+Dependency
+Endpoint
+Ingress
+HPA
+Scheduler
+Topology
+Business
+~~~
+
+多个层次建立完整故障传播与恢复证据链。
+
+---
+
+## 9.21 后续增强项
+
+本 Drill 暴露出的：
+
+~~~text
+HPA scale-down
+        ↓
+placement drift
+~~~
+
+将在 Traditional SRE Baseline Freeze 之后作为独立小型增强项处理：
+
+~~~text
+Descheduler
++
+TopologySpreadConstraints
++
+automatic placement rebalance
+~~~
+
+该增强不属于当前 Traditional SRE Baseline 的完成条件，因此不在 Drill 7 中引入新的组件或变更。
+
+---
+
+## 9.22 Drill 7 最终结论
+
+~~~text
+DRILL7_CONTROLLED_WORKER1_REBOOT=PASS
+
+DRILL7_NODE_FAILURE_OBSERVED=PASS
+DRILL7_NODE_RECOVERY=PASS
+
+DRILL7_MYSQL_DEPENDENCY_IMPACT=OBSERVED
+DRILL7_ENDPOINT_CONTRACTION=OBSERVED
+
+DRILL7_TRANSIENT_CNI_RECOVERY_ORDERING=OBSERVED
+DRILL7_TRANSIENT_CNI_RECOVERY_ORDERING_SELF_RECOVERED=YES
+
+DRILL7_LOCAL_PV_SAME_NODE_PERSISTENCE=PASS
+DRILL7_DIRECT_MYSQL_DATA_VERIFICATION=PASS
+
+DRILL7_CROSS_NODE_STORAGE_HA=NOT_TESTED
+DRILL7_CROSS_NODE_STORAGE_HA=NOT_CLAIMED
+
+DRILL7_POST_RECOVERY_HPA_SCALE_UP=OBSERVED
+DRILL7_POST_RECOVERY_HPA_SCALE_DOWN=OBSERVED
+
+DRILL7_POST_HPA_SCALE_DOWN_PLACEMENT_DRIFT=OBSERVED
+DRILL7_PLACEMENT_DRIFT_REMEDIATION=PASS
+
+DRILL7_FINAL_FASTAPI_PLACEMENT=WORKER1_1_WORKER2_1
+
+DRILL7_FINAL_HEALTHZ=HTTP_200
+DRILL7_FINAL_READYZ=HTTP_200
+DRILL7_FINAL_BUSINESS_READ=HTTP_200
+
+DRILL7_FINAL_VERDICT=PASS
+DRILL7_STATE=SEALED
+~~~
+
+**Drill 7 状态：SEALED。**
 
 ---
 
 # 10. 当前阶段结论
 
-截至 Drill 5 完成，Systematic Fault Drills 当前状态为：
+Systematic Fault Drills 七项演练现已全部完成并封存。
 
 ~~~text
 DRILL_1_FASTAPI_POD_SELF_HEALING=PASS
@@ -3746,14 +4958,19 @@ DRILL_2_REDIS_DEPENDENCY_FAILURE=PASS
 DRILL_3_MYSQL_POD_SELF_HEALING=PASS
 DRILL_4_HPA_LOAD_RECOVERY=PASS
 DRILL_5_MONITORING_TARGET_FAILURE=PASS
+DRILL_6_INGRESS_SERVICE_POD_CHAIN=PASS
+DRILL_7_WORKER_NODE_LOCAL_PV_BOUNDARY=PASS
 
-COMPLETED_DRILLS=6/7
-SEALED_DRILLS=6/7
+COMPLETED_DRILLS=7/7
+SEALED_DRILLS=7/7
 
-NEXT_DRILL=DRILL_7_WORKER_NODE_LOCAL_PV_BOUNDARY
+SYSTEMATIC_FAULT_DRILLS_PROGRESS=7/7
+SYSTEMATIC_FAULT_DRILLS_STATE=SEALED
+
+NEXT_STAGE=FINAL_SRE_VALIDATION
 ~~~
 
-当前已经完成的 Drill 覆盖：
+七项 Drill 覆盖：
 
 ~~~text
 Drill 1
@@ -3796,38 +5013,61 @@ Pending / Firing
 Alertmanager
 +
 External Firing / Resolved Notification
-+
-Current Runtime Corroboration
-~~~
 
-Systematic Fault Drills 当前进度：
-
-~~~text
-5 / 7
-~~~
-
-剩余：
-
-~~~text
 Drill 6
-Ingress / Service / Pod Chain Diagnosis
+Service Selector Mismatch
++
+EndpointSlice Reconciliation
++
+Ingress 502
++
+Ingress / Service / Pod RCA
 
 Drill 7
-Worker Node / Local PV Boundary
+Worker Node Reboot
++
+Node Recovery
++
+MySQL HARD Dependency Propagation
++
+Local PV Same-Node Persistence
++
+CNI Recovery Ordering
++
+HPA Recovery Behavior
++
+Topology Placement Drift
++
+Minimal Rebalance Remediation
 ~~~
 
-Drill 7 仍作为风险最高的 Node-Level Validation 最后执行。
+Systematic Fault Drills 最终进度：
 
-全部 Drill 完成以后进入：
+~~~text
+7 / 7
+~~~
+
+Systematic Fault Drills 阶段完成后进入：
 
 ~~~text
 Final SRE Validation
-↓
+        ↓
 TRADITIONAL_SRE_BASELINE=PASS
-↓
+        ↓
 Git Baseline Freeze / Milestone
-↓
+        ↓
+Descheduler + TopologySpread
+Automatic Rebalance Enhancement
+        ↓
 course-design/hermes-closed-loop
-↓
+        ↓
 Hermes 智能运维阶段
+~~~
+
+当前不进入 Hermes。
+
+下一阶段：
+
+~~~text
+NEXT_STAGE=FINAL_SRE_VALIDATION
 ~~~
