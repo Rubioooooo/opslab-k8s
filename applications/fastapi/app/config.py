@@ -20,6 +20,7 @@ class Settings:
     redis_port: int
     redis_password: str = field(repr=False)
 
+    readiness_dependency_timeout_seconds: float
     dependency_timeout_seconds: float
     redis_cache_ttl_seconds: int
 
@@ -40,6 +41,9 @@ class Settings:
             redis_port=int(os.getenv("REDIS_PORT", "6379")),
             redis_password=os.getenv("REDIS_PASSWORD", ""),
 
+            readiness_dependency_timeout_seconds=float(
+                os.getenv("READINESS_DEPENDENCY_TIMEOUT_SECONDS", "1")
+            ),
             dependency_timeout_seconds=float(
                 os.getenv("DEPENDENCY_TIMEOUT_SECONDS", "2")
             ),

@@ -16,7 +16,7 @@ async def check_mysql() -> None:
     cursor = None
 
     try:
-        async with asyncio.timeout(settings.dependency_timeout_seconds):
+        async with asyncio.timeout(settings.readiness_dependency_timeout_seconds):
             connection = await aiomysql.connect(
                 host=settings.mysql_host,
                 port=settings.mysql_port,
@@ -49,13 +49,13 @@ async def check_redis() -> None:
         host=settings.redis_host,
         port=settings.redis_port,
         password=settings.redis_password,
-        socket_connect_timeout=settings.dependency_timeout_seconds,
-        socket_timeout=settings.dependency_timeout_seconds,
+        socket_connect_timeout=settings.readiness_dependency_timeout_seconds,
+        socket_timeout=settings.readiness_dependency_timeout_seconds,
         decode_responses=True,
     )
 
     try:
-        async with asyncio.timeout(settings.dependency_timeout_seconds):
+        async with asyncio.timeout(settings.readiness_dependency_timeout_seconds):
             pong = await client.ping()
 
             if pong is not True:

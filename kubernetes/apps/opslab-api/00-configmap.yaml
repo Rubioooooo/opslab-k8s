@@ -10,7 +10,7 @@ metadata:
     app.kubernetes.io/part-of: opslab-k8s
 data:
   APP_NAME: opslab-api
-  APP_VERSION: v0.3.0
+  APP_VERSION: v0.3.1
   APP_ENV: development
 
   MYSQL_HOST: opslab-mysql
@@ -20,5 +20,6 @@ data:
   REDIS_HOST: opslab-redis
   REDIS_PORT: "6379"
 
+  READINESS_DEPENDENCY_TIMEOUT_SECONDS: "1"
   DEPENDENCY_TIMEOUT_SECONDS: "2"
   REDIS_CACHE_TTL_SECONDS: "300"
