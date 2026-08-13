@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: opslab-api
+  namespace: opslab
+  labels:
+    app.kubernetes.io/instance: opslab
+    app.kubernetes.io/name: opslab-api
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: opslab
+      app.kubernetes.io/name: opslab-api
