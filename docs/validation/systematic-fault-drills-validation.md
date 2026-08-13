@@ -22,7 +22,7 @@
 | Drill 3 | MySQL Pod Self-Healing | SEALED | PASS（首次 FAIL，修复后复测 PASS） |
 | Drill 4 | HPA Load / Recovery | SEALED | PASS |
 | Drill 5 | Monitoring Target Failure | SEALED | PASS（复用历史真实告警证据并完成当前 Runtime 交叉验证） |
-| Drill 6 | Ingress / Service / Pod 链路诊断 | Pending | 待执行 |
+| Drill 6 | Ingress / Service / Pod 链路诊断 | SEALED | PASS（Service selector mismatch → EndpointSlice 后端清空 → Ingress 502 → 恢复后自动重建） |
 | Drill 7 | Worker Node / Local PV Boundary | Pending | 最后执行，高风险 |
 
 ---
@@ -2962,7 +2962,773 @@ DRILL_5_MONITORING_TARGET_FAILURE=PASS
 
 # 8. Drill 6 — Ingress / Service / Pod 链路诊断
 
-状态：Pending。通过最小故障验证 `Client -> Ingress -> Service -> EndpointSlice -> Pod` 的分层诊断方法。
+## 8.1 状态
+
+~~~text
+DRILL6=SEALED
+DRILL6_RESULT=PASS
+FAULT_MODEL=SERVICE_SELECTOR_MISMATCH
+~~~
+
+本 Drill 验证 Kubernetes 应用访问链中的分层故障定位能力。
+
+核心访问链为：
+
+~~~text
+Client
+  ↓
+Ingress
+  ↓
+Service
+  ↓
+EndpointSlice
+  ↓
+Pod
+  ↓
+Application
+  ↓
+Dependency
+~~~
+
+本 Drill 的重点不是验证 Pod 自愈，而是证明：
+
+> **Pod Running / Ready 并不等价于 Service 后端健康，也不等价于端到端业务链路健康。**
+
+当客户端出现 502、503、connection failure、Service 无后端、Endpoint 消失，或者“Pod 正常但业务不可访问”等现象时，应沿访问链逐层建立证据，而不是直接重启 Pod。
+
+---
+
+## 8.2 Healthy Chain Baseline
+
+正式故障注入前首先完成只读健康链路审计。
+
+Git：
+
+~~~text
+## master...origin/master
+~~~
+
+Ingress：
+
+~~~text
+NAME:
+opslab-api
+
+CLASS:
+nginx
+
+HOST:
+api.opslab.local
+
+PATH:
+/
+
+BACKEND SERVICE:
+opslab-api
+
+BACKEND PORT:
+http
+~~~
+
+Service：
+
+~~~text
+NAME:
+opslab-api
+
+TYPE:
+ClusterIP
+
+CLUSTER-IP:
+10.101.217.83
+
+PORT:
+80/TCP
+
+targetPort:
+http
+~~~
+
+Service selector：
+
+~~~text
+app.kubernetes.io/instance=opslab
+app.kubernetes.io/name=opslab-api
+~~~
+
+FastAPI Pod：
+
+~~~text
+opslab-api-797c8fdfbf-tmtx2
+READY=1/1
+STATUS=Running
+RESTARTS=0
+IP=10.244.1.57
+NODE=k8s-worker1
+
+opslab-api-797c8fdfbf-zwmzk
+READY=1/1
+STATUS=Running
+RESTARTS=0
+IP=10.244.2.69
+NODE=k8s-worker2
+~~~
+
+两个 Pod 均具有 Service selector 所要求的 labels。
+
+EndpointSlice：
+
+~~~text
+NAME:
+opslab-api-xdfd5
+
+PORT:
+8000
+
+ENDPOINTS:
+10.244.1.57
+10.244.2.69
+~~~
+
+两个 endpoint 均观察到：
+
+~~~text
+ready=true
+serving=true
+terminating=false
+~~~
+
+因此健康状态下可以形成：
+
+~~~text
+Service selector
+        ↓ MATCH
+FastAPI Pod labels
+        ↓
+EndpointSlice
+        ↓
+10.244.1.57:8000
+10.244.2.69:8000
+~~~
+
+端到端健康验证：
+
+~~~text
+worker1 Ingress /healthz
+HTTP_CODE=200
+
+worker2 Ingress /healthz
+HTTP_CODE=200
+
+/readyz
+HTTP_CODE=200
+mysql=ok
+redis=ok
+
+/api/v1/events/1
+HTTP_CODE=200
+id=1
+message=fastapi-mysql-write-read-ok
+~~~
+
+结论：
+
+~~~text
+DRILL6_HEALTHY_CHAIN_BASELINE=PASS
+~~~
+
+---
+
+## 8.3 Fault Model
+
+完成健康 Baseline 后，选择：
+
+~~~text
+FAULT_MODEL=SERVICE_SELECTOR_MISMATCH
+~~~
+
+本 Fault Model 只临时修改 `opslab-api` Service 的 selector。
+
+不执行：
+
+~~~text
+Pod delete
+Deployment modification
+Ingress modification
+MySQL modification
+Redis modification
+PVC/PV modification
+workload restart
+~~~
+
+因此 blast radius 被限制在：
+
+~~~text
+opslab-api Service backend discovery
+~~~
+
+正常 selector：
+
+~~~text
+app.kubernetes.io/instance=opslab
+app.kubernetes.io/name=opslab-api
+~~~
+
+故障 selector：
+
+~~~text
+app.kubernetes.io/instance=opslab
+app.kubernetes.io/name=opslab-api-drill6-broken
+~~~
+
+---
+
+## 8.4 Fault Injection Safety Gate
+
+正式注入前首先确认正常 selector 可以匹配两个 FastAPI Pod。
+
+正常匹配结果：
+
+~~~text
+2 FastAPI Pods matched
+~~~
+
+随后检查故障 selector：
+
+~~~text
+No resources found in opslab namespace.
+~~~
+
+证明：
+
+~~~text
+BROKEN_SELECTOR_MATCHING_PODS=0
+~~~
+
+随后执行 server-side dry-run。
+
+Dry-run 中的 selector：
+
+~~~text
+app.kubernetes.io/instance=opslab
+app.kubernetes.io/name=opslab-api-drill6-broken
+~~~
+
+Dry-run 后再次检查 Live Service。
+
+真实 selector 仍然是：
+
+~~~text
+app.kubernetes.io/instance=opslab
+app.kubernetes.io/name=opslab-api
+~~~
+
+EndpointSlice 仍然存在：
+
+~~~text
+10.244.1.57
+10.244.2.69
+~~~
+
+结论：
+
+~~~text
+DRILL6_FAULT_INJECTION_SAFETY_GATE=PASS
+FAULT_INJECTION_APPROVED=YES
+~~~
+
+---
+
+## 8.5 Controlled Fault Injection
+
+故障注入时间：
+
+~~~text
+2026-08-13T10:50:08+00:00
+~~~
+
+仅修改：
+
+~~~text
+Service:
+opslab-api
+
+Field:
+spec.selector
+~~~
+
+将：
+
+~~~text
+app.kubernetes.io/name=opslab-api
+~~~
+
+临时修改为：
+
+~~~text
+app.kubernetes.io/name=opslab-api-drill6-broken
+~~~
+
+真实执行结果：
+
+~~~text
+service/opslab-api patched
+~~~
+
+修改后的 Live selector：
+
+~~~text
+app.kubernetes.io/instance=opslab
+app.kubernetes.io/name=opslab-api-drill6-broken
+~~~
+
+---
+
+## 8.6 EndpointSlice Reconciliation
+
+Service selector 修改后，EndpointSlice Controller 自动重新调谐。
+
+第一次观察即得到：
+
+~~~text
+attempt=01
+endpoints=""
+ENDPOINTS_EMPTY=PASS
+~~~
+
+EndpointSlice YAML 中进一步确认：
+
+~~~text
+endpoints: null
+ports: null
+~~~
+
+因此：
+
+~~~text
+SERVICE_OBJECT=EXISTS
+SERVICE_SELECTOR_MATCH=FALSE
+ENDPOINTSLICE_ENDPOINTS=0
+~~~
+
+这说明 Service 对象本身仍存在，但是已经失去可用业务后端。
+
+---
+
+## 8.7 FastAPI Pod State During Fault
+
+故障期间 FastAPI Pod 没有被修改，也没有被重启。
+
+真实状态：
+
+~~~text
+opslab-api-797c8fdfbf-tmtx2
+READY=1/1
+STATUS=Running
+RESTARTS=0
+IP=10.244.1.57
+
+opslab-api-797c8fdfbf-zwmzk
+READY=1/1
+STATUS=Running
+RESTARTS=0
+IP=10.244.2.69
+~~~
+
+因此：
+
+~~~text
+POD_HEALTHY=YES
+APPLICATION_INSTANCES_RUNNING=YES
+FASTAPI_RESTARTS=0
+~~~
+
+这是本 Drill 的关键证据：
+
+> **两个 FastAPI Pod 均保持 Running / Ready，但 Service 已经没有任何 Endpoint。**
+
+---
+
+## 8.8 Client-Side Failure
+
+故障期间分别通过 worker1 和 worker2 的 NGINX Ingress Controller 访问：
+
+~~~text
+http://api.opslab.local/healthz
+~~~
+
+worker1：
+
+~~~text
+HTTP_CODE=502
+502 Bad Gateway
+nginx/1.31.3
+~~~
+
+worker2：
+
+~~~text
+HTTP_CODE=502
+502 Bad Gateway
+nginx/1.31.3
+~~~
+
+实验前只要求观察 5xx。
+
+事前曾预测可能出现 HTTP 503，但真实实验结果为：
+
+~~~text
+EXPECTED_HTTP_FAILURE=5xx
+OBSERVED_HTTP_FAILURE=502
+~~~
+
+不重新制造故障以强行匹配预期。
+
+最终文档以真实结果为准。
+
+---
+
+## 8.9 Ingress RCA Corroboration
+
+恢复完成后，没有再次制造故障。
+
+通过读取两个 NGINX Ingress Controller 的历史日志，对 HTTP 502 进行只读 RCA 佐证。
+
+worker1 日志：
+
+~~~text
+Error retrieving endpoints for the service opslab-api:
+error determining target port for port {http 0} in Ingress:
+no pods of service opslab-api
+~~~
+
+随后：
+
+~~~text
+connect() failed (111: Connection refused)
+while connecting to upstream
+
+upstream:
+http://127.0.0.1:8181/healthz
+~~~
+
+HTTP Access Log：
+
+~~~text
+GET /healthz HTTP/1.1
+502
+~~~
+
+worker2 同样记录：
+
+~~~text
+Error retrieving endpoints for the service opslab-api:
+no pods of service opslab-api
+~~~
+
+随后：
+
+~~~text
+connect() failed (111: Connection refused)
+while connecting to upstream
+
+upstream:
+http://127.0.0.1:8181/healthz
+~~~
+
+并最终：
+
+~~~text
+HTTP 502
+~~~
+
+因此本次 502 可以建立完整证据链：
+
+~~~text
+Service selector mismatch
+        ↓
+Service 无法匹配 FastAPI Pods
+        ↓
+EndpointSlice Controller reconciliation
+        ↓
+EndpointSlice endpoints=0
+        ↓
+Ingress Controller 无法取得 opslab-api 后端
+        ↓
+no pods of service opslab-api
+        ↓
+fallback upstream:
+127.0.0.1:8181
+        ↓
+Connection refused
+        ↓
+HTTP 502 Bad Gateway
+~~~
+
+因此：
+
+~~~text
+INGRESS_CONTROLLER=HEALTHY
+CLIENT_TO_INGRESS=REACHABLE
+INGRESS_BACKEND_RESOLUTION=FAILED
+INGRESS_TO_APPLICATION_BACKEND=FAILED
+~~~
+
+本实验直接证明：
+
+> **HTTP 502 并不能直接推出业务 Pod 已经崩溃。**
+
+---
+
+## 8.10 Recovery
+
+故障验证完成后立即恢复原 Service selector。
+
+恢复值：
+
+~~~text
+app.kubernetes.io/instance=opslab
+app.kubernetes.io/name=opslab-api
+~~~
+
+真实结果：
+
+~~~text
+service/opslab-api patched
+~~~
+
+EndpointSlice Controller 随后自动调谐。
+
+第一次恢复检查即观察到：
+
+~~~text
+attempt=01
+endpoints="10.244.1.57 10.244.2.69"
+ENDPOINTS_RECOVERED=PASS
+~~~
+
+恢复过程无需：
+
+~~~text
+manual Pod restart
+manual EndpointSlice edit
+Deployment restart
+Ingress restart
+~~~
+
+恢复后两个 FastAPI Pod 仍：
+
+~~~text
+READY=1/1
+STATUS=Running
+RESTARTS=0
+~~~
+
+业务验证：
+
+~~~text
+/healthz
+HTTP_CODE=200
+
+/readyz
+HTTP_CODE=200
+mysql=ok
+redis=ok
+
+/api/v1/events/1
+HTTP_CODE=200
+id=1
+message=fastapi-mysql-write-read-ok
+~~~
+
+最终 Service selector：
+
+~~~text
+app.kubernetes.io/instance=opslab
+app.kubernetes.io/name=opslab-api
+~~~
+
+最终 EndpointSlice：
+
+~~~text
+10.244.1.57
+10.244.2.69
+~~~
+
+Git：
+
+~~~text
+## master...origin/master
+~~~
+
+因此：
+
+~~~text
+DRILL6_SELECTOR_RECOVERY=PASS
+DRILL6_ENDPOINT_RECOVERY=PASS
+DRILL6_APPLICATION_RECOVERY=PASS
+~~~
+
+---
+
+## 8.11 Root Cause Analysis
+
+根因：
+
+~~~text
+ROOT_CAUSE=SERVICE_SELECTOR_MISMATCH
+~~~
+
+机制：
+
+~~~text
+Service.spec.selector
+无法匹配
+FastAPI Pod labels
+        ↓
+EndpointSlice Controller
+执行 reconciliation
+        ↓
+Service endpoints 被移除
+        ↓
+Ingress Controller
+无法解析真实 FastAPI backend
+        ↓
+Client HTTP 502
+~~~
+
+本故障不是：
+
+~~~text
+FastAPI crash
+MySQL failure
+Redis failure
+Ingress Controller crash
+Worker Node failure
+PVC failure
+CNI failure
+~~~
+
+而是：
+
+~~~text
+SERVICE_DISCOVERY_CHAIN_FAILURE
+~~~
+
+---
+
+## 8.12 SRE / Operations Value
+
+本 Drill 真正验证的不是“如何制造 502”，而是 Kubernetes 分层排障方法。
+
+推荐故障定位顺序：
+
+~~~text
+Client
+  ↓
+Ingress
+  ↓
+Service
+  ↓
+EndpointSlice
+  ↓
+Pod
+  ↓
+Application
+  ↓
+Dependency
+~~~
+
+当观察到：
+
+~~~text
+502
+503
+connection failure
+Service 无后端
+Endpoint 消失
+Pod 正常但业务不可访问
+~~~
+
+时，不应该首先执行：
+
+~~~text
+kubectl delete pod
+kubectl rollout restart
+重装 Ingress
+重装 CNI
+~~~
+
+而应该逐层收集证据。
+
+本实验真实证明：
+
+~~~text
+POD_HEALTHY
+≠
+SERVICE_BACKEND_HEALTHY
+≠
+END_TO_END_PATH_HEALTHY
+~~~
+
+同时验证了 Kubernetes Controller Reconciliation：
+
+~~~text
+修改 Service selector
+        ↓
+EndpointSlice Controller
+检测匹配关系变化
+        ↓
+重新计算 endpoints
+        ↓
+endpoints 被移除
+
+恢复 Service selector
+        ↓
+Controller 再次 reconciliation
+        ↓
+两个 Pod 自动重新成为 endpoints
+~~~
+
+整个实验：
+
+~~~text
+FASTAPI_RESTARTS=0
+MANUAL_POD_RESTART=NO
+MANUAL_ENDPOINTSLICE_EDIT=NO
+MYSQL_OPERATION=NO
+REDIS_OPERATION=NO
+STORAGE_OPERATION=NO
+~~~
+
+---
+
+## 8.13 Final Verdict
+
+~~~text
+DRILL6_HEALTHY_BASELINE=PASS
+DRILL6_FAULT_INJECTION_SAFETY_GATE=PASS
+DRILL6_FAULT_INJECTION=PASS
+DRILL6_ENDPOINT_REMOVAL=PASS
+DRILL6_PODS_REMAINED_HEALTHY=PASS
+DRILL6_CLIENT_FAILURE_OBSERVED=PASS
+DRILL6_OBSERVED_HTTP_STATUS=502
+DRILL6_INGRESS_RCA_CORROBORATION=PASS
+DRILL6_SELECTOR_RECOVERY=PASS
+DRILL6_ENDPOINT_RECOVERY=PASS
+DRILL6_APPLICATION_RECOVERY=PASS
+
+DRILL6=SEALED
+DRILL6_RESULT=PASS
+~~~
+
+最终结论：
+
+> **FastAPI Pod 在整个实验期间始终 Running / Ready，但 Service selector mismatch 使 EndpointSlice 失去全部后端。NGINX Ingress Controller 无法取得业务 upstream，并真实产生 HTTP 502。恢复正确 selector 后，EndpointSlice Controller 自动重新建立两个 FastAPI endpoints，业务访问恢复 HTTP 200，全程无需重启 FastAPI Pod。**
+
+因此：
+
+> **Pod Healthy 不等价于 Service Healthy，也不等价于端到端业务链路 Healthy。**
 
 # 9. Drill 7 — Worker Node / Local PV Boundary
 
@@ -2981,10 +3747,10 @@ DRILL_3_MYSQL_POD_SELF_HEALING=PASS
 DRILL_4_HPA_LOAD_RECOVERY=PASS
 DRILL_5_MONITORING_TARGET_FAILURE=PASS
 
-COMPLETED_DRILLS=5/7
-SEALED_DRILLS=5/7
+COMPLETED_DRILLS=6/7
+SEALED_DRILLS=6/7
 
-NEXT_DRILL=DRILL_6_INGRESS_SERVICE_POD_CHAIN_DIAGNOSIS
+NEXT_DRILL=DRILL_7_WORKER_NODE_LOCAL_PV_BOUNDARY
 ~~~
 
 当前已经完成的 Drill 覆盖：
