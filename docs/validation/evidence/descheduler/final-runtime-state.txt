@@ -1,0 +1,16 @@
+===== PDB =====
+NAME         MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
+opslab-api   N/A             1                 1                     154m
+
+===== HPA =====
+NAME         REFERENCE               TARGETS        MINPODS   MAXPODS   REPLICAS   AGE
+opslab-api   Deployment/opslab-api   cpu: 16%/60%   2         4         2          3d2h
+
+===== Parent CronJob =====
+NAME                 SCHEDULE      TIMEZONE   SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+opslab-descheduler   */2 * * * *   <none>     True      0        <none>          103m
+
+===== Stateful Workloads =====
+NAME                                                      READY   STATUS      RESTARTS       AGE   IP            NODE          NOMINATED NODE   READINESS GATES
+opslab-mysql-0                                            1/1     Running     1 (5h5m ago)   8h    10.244.1.60   k8s-worker1   <none>           <none>
+opslab-redis-0                                            1/1     Running     0              9h    10.244.2.66   k8s-worker2   <none>           <none>

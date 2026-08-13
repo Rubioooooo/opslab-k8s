@@ -1,0 +1,46 @@
+2026-08-13T17:56:04.624510886Z I0813 17:56:04.624316       1 feature_gate.go:477] "Updated" featureGates={}
+2026-08-13T17:56:05.237096440Z I0813 17:56:05.236734       1 healthz.go:208] Installing health checkers for (/healthz): "Descheduler"
+2026-08-13T17:56:05.237207372Z I0813 17:56:05.237104       1 secure_serving.go:57] Forcing use of http/1.1 only
+2026-08-13T17:56:05.237735959Z I0813 17:56:05.237520       1 named_certificates.go:53] "Loaded SNI cert" index=0 certName="self-signed loopback" certDetail="\"apiserver-loopback-client@1786643765\" [serving] validServingFor=[apiserver-loopback-client] issuer=\"apiserver-loopback-client-ca@1786643764\" (2026-08-13 16:56:04 +0000 UTC to 2029-08-13 16:56:04 +0000 UTC (now=2026-08-13 17:56:05.237495915 +0000 UTC))"
+2026-08-13T17:56:05.237757724Z I0813 17:56:05.237583       1 secure_serving.go:214] Serving securely on [::]:10258
+2026-08-13T17:56:05.237761170Z I0813 17:56:05.237596       1 tracing.go:88] Did not find a trace collector endpoint defined. Switching to NoopTraceProvider
+2026-08-13T17:56:05.237973909Z I0813 17:56:05.237719       1 tlsconfig.go:243] "Starting DynamicServingCertificateController"
+2026-08-13T17:56:05.238204855Z I0813 17:56:05.238012       1 envvar.go:195] "Feature gate default state" feature="ClientsAllowTLSCacheGC" enabled=true
+2026-08-13T17:56:05.238215033Z I0813 17:56:05.238058       1 envvar.go:195] "Feature gate default state" feature="InOrderInformers" enabled=true
+2026-08-13T17:56:05.238218094Z I0813 17:56:05.238066       1 envvar.go:195] "Feature gate default state" feature="InformerResourceVersion" enabled=true
+2026-08-13T17:56:05.238220296Z I0813 17:56:05.238070       1 envvar.go:195] "Feature gate default state" feature="ClientsAllowCBOR" enabled=false
+2026-08-13T17:56:05.238222201Z I0813 17:56:05.238073       1 envvar.go:195] "Feature gate default state" feature="InOrderInformersBatchProcess" enabled=true
+2026-08-13T17:56:05.238224056Z I0813 17:56:05.238077       1 envvar.go:195] "Feature gate default state" feature="UnlockWhileProcessingFIFO" enabled=true
+2026-08-13T17:56:05.238225960Z I0813 17:56:05.238079       1 envvar.go:195] "Feature gate default state" feature="WatchListClient" enabled=true
+2026-08-13T17:56:05.238227861Z I0813 17:56:05.238083       1 envvar.go:195] "Feature gate default state" feature="ClientsAllowCARotation" enabled=true
+2026-08-13T17:56:05.238229665Z I0813 17:56:05.238085       1 envvar.go:195] "Feature gate default state" feature="AtomicFIFO" enabled=true
+2026-08-13T17:56:05.238231444Z I0813 17:56:05.238088       1 envvar.go:195] "Feature gate default state" feature="ClientsPreferCBOR" enabled=false
+2026-08-13T17:56:05.254428967Z I0813 17:56:05.254297       1 reflector.go:425] "Starting reflector" type="*v1.Pod" resyncPeriod="0s" reflector="k8s.io/client-go/informers/factory.go:177"
+2026-08-13T17:56:05.254451866Z I0813 17:56:05.254324       1 reflector.go:472] "Listing and watching" type="*v1.Pod" reflector="k8s.io/client-go/informers/factory.go:177"
+2026-08-13T17:56:05.254454354Z I0813 17:56:05.254338       1 reflector.go:425] "Starting reflector" type="*v1.PersistentVolumeClaim" resyncPeriod="0s" reflector="k8s.io/client-go/informers/factory.go:177"
+2026-08-13T17:56:05.254455906Z I0813 17:56:05.254353       1 reflector.go:472] "Listing and watching" type="*v1.PersistentVolumeClaim" reflector="k8s.io/client-go/informers/factory.go:177"
+2026-08-13T17:56:05.254727121Z I0813 17:56:05.254538       1 reflector.go:425] "Starting reflector" type="*v1.Node" resyncPeriod="0s" reflector="k8s.io/client-go/informers/factory.go:177"
+2026-08-13T17:56:05.254737349Z I0813 17:56:05.254567       1 reflector.go:472] "Listing and watching" type="*v1.Node" reflector="k8s.io/client-go/informers/factory.go:177"
+2026-08-13T17:56:05.270081642Z I0813 17:56:05.269850       1 reflector.go:1080] "Exiting watch because received the bookmark that marks the end of initial events stream" reflector="k8s.io/client-go/informers/factory.go:177" totalItems=4 duration="15.461294ms"
+2026-08-13T17:56:05.270139971Z I0813 17:56:05.269909       1 reflector.go:507] "Caches populated" type="*v1.PersistentVolumeClaim" reflector="k8s.io/client-go/informers/factory.go:177"
+2026-08-13T17:56:05.273001535Z I0813 17:56:05.272845       1 reflector.go:1080] "Exiting watch because received the bookmark that marks the end of initial events stream" reflector="k8s.io/client-go/informers/factory.go:177" totalItems=4 duration="18.253135ms"
+2026-08-13T17:56:05.273018482Z I0813 17:56:05.272938       1 reflector.go:507] "Caches populated" type="*v1.Node" reflector="k8s.io/client-go/informers/factory.go:177"
+2026-08-13T17:56:05.275378678Z I0813 17:56:05.275274       1 reflector.go:1080] "Exiting watch because received the bookmark that marks the end of initial events stream" reflector="k8s.io/client-go/informers/factory.go:177" totalItems=35 duration="20.934046ms"
+2026-08-13T17:56:05.275405130Z I0813 17:56:05.275315       1 reflector.go:507] "Caches populated" type="*v1.Pod" reflector="k8s.io/client-go/informers/factory.go:177"
+2026-08-13T17:56:05.275464174Z I0813 17:56:05.275400       1 descheduler.go:235] Resetting pod evictor counters
+2026-08-13T17:56:05.275597580Z I0813 17:56:05.275497       1 topologyspreadconstraint.go:135] "Processing namespaces for topology spread constraints" plugin="RemovePodsViolatingTopologySpreadConstraint" ExtensionPoint="Balance"
+2026-08-13T17:56:05.275604909Z I0813 17:56:05.275544       1 topologyspreadconstraint.go:151] "Processing namespace for topology spread constraints" plugin="RemovePodsViolatingTopologySpreadConstraint" ExtensionPoint="Balance" namespace="opslab"
+2026-08-13T17:56:05.275715992Z I0813 17:56:05.275629       1 node.go:185] "Pod fits on node" pod="opslab/opslab-api-797c8fdfbf-8bnmj" node="k8s-worker1"
+2026-08-13T17:56:05.275719525Z I0813 17:56:05.275674       1 node.go:185] "Pod fits on node" pod="opslab/opslab-api-797c8fdfbf-zwmzk" node="k8s-worker1"
+2026-08-13T17:56:05.275723536Z I0813 17:56:05.275689       1 node.go:185] "Pod fits on node" pod="opslab/opslab-api-797c8fdfbf-8bnmj" node="k8s-worker1"
+2026-08-13T17:56:05.275748096Z I0813 17:56:05.275717       1 node.go:189] "Pod does not fit on node" pod="opslab/opslab-api-797c8fdfbf-8bnmj" node="k8s-control-plane" err="pod does not tolerate taints on the node"
+2026-08-13T17:56:05.275813714Z I0813 17:56:05.275768       1 node.go:185] "Pod fits on node" pod="opslab/opslab-api-797c8fdfbf-8bnmj" node="k8s-worker1"
+2026-08-13T17:56:05.291824632Z I0813 17:56:05.291617       1 evictions.go:589] "Evicted pod" pod="opslab/opslab-api-797c8fdfbf-8bnmj" reason="" strategy="RemovePodsViolatingTopologySpreadConstraint" node="k8s-worker2" profile="opslab-fastapi-rebalance"
+2026-08-13T17:56:05.291849211Z I0813 17:56:05.291712       1 profile.go:417] "Total number of evictions/requests" extension point="Balance" evictedPods=1 evictionRequests=0
+2026-08-13T17:56:05.291851760Z I0813 17:56:05.291730       1 descheduler.go:252] "Number of evictions/requests" totalEvicted=1 evictionRequests=0
+2026-08-13T17:56:05.292118558Z E0813 17:56:05.291878       1 event_broadcaster.go:279] "Unable to write event (may retry after sleeping)" err="client rate limiter Wait returned an error: context canceled"
+2026-08-13T17:56:05.292128042Z I0813 17:56:05.291916       1 reflector.go:434] "Stopping reflector" type="*v1.Pod" resyncPeriod="0s" reflector="k8s.io/client-go/informers/factory.go:177"
+2026-08-13T17:56:05.292129702Z I0813 17:56:05.291927       1 reflector.go:434] "Stopping reflector" type="*v1.Node" resyncPeriod="0s" reflector="k8s.io/client-go/informers/factory.go:177"
+2026-08-13T17:56:05.292131204Z I0813 17:56:05.291943       1 reflector.go:434] "Stopping reflector" type="*v1.PersistentVolumeClaim" resyncPeriod="0s" reflector="k8s.io/client-go/informers/factory.go:177"
+2026-08-13T17:56:05.292357346Z I0813 17:56:05.292260       1 tlsconfig.go:258] "Shutting down DynamicServingCertificateController"
+2026-08-13T17:56:05.292362650Z I0813 17:56:05.292286       1 secure_serving.go:262] Stopped listening on [::]:10258

@@ -1,0 +1,82 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/instance: opslab-descheduler
+    app.kubernetes.io/name: descheduler
+    app.kubernetes.io/version: 0.36.0
+    helm.sh/chart: descheduler-0.36.0
+  name: opslab-descheduler
+  namespace: opslab
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    metadata: {}
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/instance: opslab-descheduler
+            app.kubernetes.io/name: descheduler
+          name: opslab-descheduler
+        spec:
+          containers:
+          - args:
+            - --policy-config-file=/policy-dir/policy.yaml
+            - --dry-run=true
+            - --v=3
+            command:
+            - /bin/descheduler
+            image: crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/descheduler:v0.36.0@sha256:abb7831250bd342f828ef0e212b44d24987372e3ccfa7efec8aafd4ff8084137
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 3
+              httpGet:
+                path: /healthz
+                port: 10258
+                scheme: HTTPS
+              initialDelaySeconds: 5
+              periodSeconds: 20
+              successThreshold: 1
+              timeoutSeconds: 5
+            name: descheduler
+            ports:
+            - containerPort: 10258
+              protocol: TCP
+            resources:
+              limits:
+                cpu: 500m
+                memory: 256Mi
+              requests:
+                cpu: 500m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              privileged: false
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 1000
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+            volumeMounts:
+            - mountPath: /policy-dir
+              name: policy-volume
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+          schedulerName: default-scheduler
+          securityContext: {}
+          serviceAccount: opslab-descheduler
+          serviceAccountName: opslab-descheduler
+          terminationGracePeriodSeconds: 30
+          volumes:
+          - configMap:
+              defaultMode: 420
+              name: opslab-descheduler
+            name: policy-volume
+  schedule: '*/2 * * * *'
+  successfulJobsHistoryLimit: 3
+  suspend: true

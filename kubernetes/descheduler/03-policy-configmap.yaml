@@ -1,0 +1,19 @@
+apiVersion: v1
+data:
+  policy.yaml: "apiVersion: descheduler/v1alpha2\nkind: DeschedulerPolicy\nevictionFailureEventNotification:\
+    \ true\nmaxNoOfPodsToEvictPerNamespace: 1\nmaxNoOfPodsToEvictPerNode: 1\nmaxNoOfPodsToEvictTotal:\
+    \ 1\nprofiles:\n- name: opslab-fastapi-rebalance\n  pluginConfig:\n  - args:\n\
+    \      labelSelector:\n        matchLabels:\n          app.kubernetes.io/instance:\
+    \ opslab\n          app.kubernetes.io/name: opslab-api\n      minReplicas: 2\n\
+    \      nodeFit: true\n      podProtections:\n        defaultDisabled:\n      \
+    \  - PodsWithLocalStorage\n        extraEnabled:\n        - PodsWithPVC\n    name:\
+    \ DefaultEvictor\n  - args:\n      constraints:\n      - DoNotSchedule\n     \
+    \ labelSelector:\n        matchLabels:\n          app.kubernetes.io/instance:\
+    \ opslab\n          app.kubernetes.io/name: opslab-api\n      namespaces:\n  \
+    \      include:\n        - opslab\n      topologyBalanceNodeFit: true\n    name:\
+    \ RemovePodsViolatingTopologySpreadConstraint\n  plugins:\n    balance:\n    \
+    \  enabled:\n      - RemovePodsViolatingTopologySpreadConstraint\n"
+kind: ConfigMap
+metadata:
+  name: opslab-descheduler
+  namespace: opslab

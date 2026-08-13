@@ -1,0 +1,79 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opslab-descheduler-observer
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - nodes
+  - namespaces
+  - pods
+  - persistentvolumeclaims
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - scheduling.k8s.io
+  resources:
+  - priorityclasses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opslab-descheduler-observer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opslab-descheduler-observer
+subjects:
+- kind: ServiceAccount
+  name: opslab-descheduler
+  namespace: opslab
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: opslab-descheduler-evict
+  namespace: opslab
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods/eviction
+  verbs:
+  - create
+- apiGroups:
+  - events.k8s.io
+  resources:
+  - events
+  verbs:
+  - create
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: opslab-descheduler-evict
+  namespace: opslab
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: opslab-descheduler-evict
+subjects:
+- kind: ServiceAccount
+  name: opslab-descheduler
+  namespace: opslab

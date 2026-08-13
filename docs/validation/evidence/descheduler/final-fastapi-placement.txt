@@ -1,0 +1,3 @@
+NAME                          READY   STATUS    RESTARTS   AGE   IP            NODE          NOMINATED NODE   READINESS GATES
+opslab-api-797c8fdfbf-r697x   1/1     Running   0          15m   10.244.1.76   k8s-worker1   <none>           <none>
+opslab-api-797c8fdfbf-zwmzk   1/1     Running   0          8h    10.244.2.69   k8s-worker2   <none>           <none>
