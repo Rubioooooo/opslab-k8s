@@ -1,8 +1,8 @@
 # OpsLab Systematic Fault Drills Validation
 
-> 项目：基于 kubeadm 的 Kubernetes 云原生应用部署与 SRE 稳定性实践  
-> 文档类型：Systematic Fault Drills 统一验证报告  
-> 状态：进行中（Drill 1、Drill 2 已完成并封存；Drill 3～7 待执行）  
+> 项目：基于 kubeadm 的 Kubernetes 云原生应用部署与 SRE 稳定性实践
+> 文档类型：Systematic Fault Drills 统一验证报告
+> 状态：进行中（Drill 1、Drill 2、Drill 3 已完成并封存；Drill 4～7 待执行）
 > 更新日期：2026-08-13
 
 ---
@@ -19,7 +19,7 @@
 |---|---|---:|---|
 | Drill 1 | FastAPI Pod Self-Healing | SEALED | PASS |
 | Drill 2 | Redis Dependency Failure | SEALED | PASS（首次 FAIL，修复后复测 PASS） |
-| Drill 3 | MySQL Pod Self-Healing | Pending | 待执行 |
+| Drill 3 | MySQL Pod Self-Healing | SEALED | PASS（首次 FAIL，修复后复测 PASS） |
 | Drill 4 | HPA Load / Recovery | Pending | 待执行/复用历史证据 |
 | Drill 5 | Monitoring Target Failure | Pending | 待执行 |
 | Drill 6 | Ingress / Service / Pod 链路诊断 | Pending | 待执行 |
@@ -402,7 +402,946 @@ DRILL_2_REDIS_DEPENDENCY_FAILURE=PASS
 
 # 5. Drill 3 — MySQL Pod Self-Healing
 
-状态：Pending。只删除 `opslab-mysql-0`，不删除 StatefulSet、PVC、PV，不操作 `/data/mysql`；验证 StatefulSet 重建、PVC 重挂载、数据仍存在、FastAPI readiness 与业务恢复。
+## 5.1 实验目标
+
+验证 MySQL Pod 发生单实例级故障时，系统是否能够依赖 Kubernetes StatefulSet 与既有持久化存储完成自动恢复，并确认：
+
+* StatefulSet 能够自动重新创建 `opslab-mysql-0`；
+* 重建后的 MySQL Pod 继续挂载原 PVC；
+* 原 PVC 继续绑定原 Local PV；
+* `/data/mysql` 中的持久化数据不因 Pod 重建而丢失；
+* FastAPI 在 MySQL HARD dependency 故障期间能够正确反映不可就绪状态；
+* MySQL 恢复后 FastAPI 能够自动恢复，而不依赖人工重启；
+* 业务数据能够在恢复后继续读取；
+* Pod 级故障恢复不依赖 MySQL Backup / Restore 流程。
+
+本 Drill 与已经完成的 MySQL Backup / Restore 实验边界不同：
+
+* 本 Drill 验证 StatefulSet + PVC + Local PV 的 Pod 级自愈；
+* Backup / Restore 验证逻辑备份及人工恢复能力；
+* 本 Drill 不删除 PVC、PV、StorageClass 或 `/data/mysql`。
+
+---
+
+## 5.2 风险范围与禁止操作
+
+Fault Injection 仅允许：
+
+```bash
+kubectl delete pod \
+  -n opslab \
+  opslab-mysql-0 \
+  --wait=false
+```
+
+本实验明确禁止：
+
+* 删除 StatefulSet；
+* 删除 PVC；
+* 删除 PV；
+* 删除 StorageClass；
+* 删除 `/data/mysql`；
+* 修改数据目录权限；
+* reboot `k8s-worker1`；
+* 重新执行 MySQL Backup / Restore；
+* 人工重建 MySQL Pod；
+* 为获得 PASS 人工重启 FastAPI。
+
+---
+
+## 5.3 PRE-FAULT BASELINE
+
+实验前状态：
+
+### Kubernetes
+
+* 三节点均为 `Ready`；
+* MySQL StatefulSet：`opslab-mysql`，`1/1 Ready`；
+* MySQL Pod：`opslab-mysql-0`，`1/1 Running`；
+* MySQL 所在节点：`k8s-worker1`；
+* MySQL Pod Restart：`0`。
+
+首次实验前 MySQL Pod：
+
+```text
+POD_UID=c921ba90-6488-4a1a-aa3a-ca76be53ad42
+POD_IP=10.244.1.36
+NODE=k8s-worker1
+START_TIME=2026-08-12T07:13:40Z
+READY=True
+READY_LAST_TRANSITION=2026-08-12T07:14:04Z
+```
+
+### Storage
+
+```text
+PVC=opslab-mysql-data
+PV=opslab-mysql-local-pv
+PVC_STATUS=Bound
+PV_STATUS=Bound
+STORAGE_CLASS=local-storage
+LOCAL_PATH=/data/mysql
+NODE_AFFINITY=k8s-worker1
+RECLAIM_POLICY=Retain
+```
+
+### MySQL Endpoint
+
+```text
+10.244.1.36
+ready=true
+serving=true
+terminating=false
+```
+
+### FastAPI
+
+FastAPI Deployment 正常运行，业务链路正常。
+
+应用正常状态：
+
+```text
+/healthz
+HTTP 200
+{"status":"ok"}
+
+/readyz
+HTTP 200
+{"status":"ready","mysql":"ok","redis":"ok"}
+```
+
+业务基线：
+
+```text
+GET /api/v1/events/1
+HTTP 200
+```
+
+数据：
+
+```text
+id=1
+message=fastapi-mysql-write-read-ok
+created_at=2026-08-08 15:49:47.595942
+```
+
+同时直接进入 MySQL 查询确认该记录真实存在于：
+
+```text
+opslab.opslab_events
+```
+
+### Ingress 测试说明
+
+测试终端本地没有 `api.opslab.local` 的静态解析记录。
+
+该问题被确认只是客户端 hostname resolution gap，而非 Ingress、Service、FastAPI 或 MySQL 故障。
+
+后续实验固定使用：
+
+```bash
+curl --resolve 'api.opslab.local:80:192.168.8.11' ...
+```
+
+或 worker2：
+
+```bash
+curl --resolve 'api.opslab.local:80:192.168.8.12' ...
+```
+
+保持正确 HTTP Host Header，同时避免修改 `/etc/hosts`。
+
+两个 Ingress 节点均验证：
+
+```text
+/healthz = HTTP 200
+/readyz  = HTTP 200
+Event ID=1 = HTTP 200
+```
+
+因此：
+
+```text
+DRILL_3_PRE_FAULT_BASELINE=PASS
+```
+
+---
+
+## 5.4 第一次 Fault Injection
+
+仅删除：
+
+```text
+opslab-mysql-0
+```
+
+未操作：
+
+* StatefulSet；
+* PVC；
+* PV；
+* `/data/mysql`；
+* worker1；
+* FastAPI Deployment。
+
+StatefulSet 随后自动重新创建 MySQL Pod。
+
+新 Pod：
+
+```text
+UID=88f03466-5987-4002-9566-6c0996600b0e
+IP=10.244.1.54
+NODE=k8s-worker1
+START_TIME=2026-08-13T09:00:32Z
+READY=True
+READY_TRANSITION=2026-08-13T09:00:38Z
+```
+
+MySQL EndpointSlice 恢复：
+
+```text
+10.244.1.54
+ready=true
+serving=true
+terminating=false
+```
+
+因此 StatefulSet 与 MySQL Pod 本身已经完成自动恢复。
+
+---
+
+## 5.5 非预期结果：MySQL 已恢复，但 FastAPI 未恢复
+
+MySQL Pod 已经：
+
+```text
+1/1 Running
+Ready=True
+```
+
+MySQL Endpoint 也已经：
+
+```text
+ready=true
+serving=true
+```
+
+但两个 FastAPI Pod 持续：
+
+```text
+0/1 Running
+Ready=False
+```
+
+FastAPI EndpointSlice：
+
+```text
+ready=false
+serving=false
+```
+
+应用内部：
+
+```text
+/healthz
+HTTP 200
+
+/readyz
+HTTP 503
+{"status":"not_ready","mysql":"error","redis":"ok"}
+```
+
+Ingress 最终表现：
+
+```text
+HTTP 502 Bad Gateway
+```
+
+FastAPI 日志持续出现：
+
+```text
+MySQL readiness check failed: RuntimeError
+```
+
+MySQL 在 `09:00:38Z` 已进入 Ready。
+
+在 `09:05:23` 保存现场时，FastAPI 仍未恢复。
+
+即：
+
+```text
+MYSQL_RECOVERED=YES
+FASTAPI_AUTO_RECOVERY=NO
+```
+
+该持续时间已经明显超过多个 readiness probe 周期，因此不能解释为普通恢复收敛延迟。
+
+第一次 Drill 3 判定：
+
+```text
+DRILL_3_INITIAL_RUN=FAIL
+```
+
+---
+
+## 5.6 分层故障定位
+
+继续从 FastAPI Pod 内进行诊断。
+
+### DNS
+
+```text
+MYSQL_HOST=opslab-mysql
+RESOLVED_ADDRESSES=['10.103.121.36']
+
+DNS_RESOLUTION=PASS
+```
+
+### TCP
+
+FastAPI Pod → MySQL Service `3306/TCP`：
+
+```text
+TCP_CONNECT=PASS
+```
+
+因此排除：
+
+* Kubernetes DNS 故障；
+* MySQL Service 故障；
+* ClusterIP 不可达；
+* TCP 3306 网络不通。
+
+### Fresh aiomysql connection
+
+在两个 FastAPI Pod 内分别创建全新的 aiomysql connection：
+
+```text
+FRESH_AIOMYSQL_CONNECTION=FAIL
+ERROR_TYPE=RuntimeError
+```
+
+错误：
+
+```text
+'cryptography' package is required for
+sha256_password or caching_sha2_password auth methods
+```
+
+这证明问题发生在：
+
+```text
+TCP connection established
+        ↓
+MySQL authentication handshake
+        ↓
+FAIL
+```
+
+而不是网络层。
+
+---
+
+## 5.7 Root Cause
+
+进一步确认：
+
+FastAPI 镜像：
+
+```text
+cryptography=NOT_INSTALLED
+```
+
+显式 import：
+
+```text
+CRYPTOGRAPHY_IMPORT=FAIL
+ModuleNotFoundError:
+No module named 'cryptography'
+```
+
+MySQL：
+
+```text
+VERSION=8.4.10
+```
+
+业务用户：
+
+```text
+opslab_app@%
+authentication plugin=caching_sha2_password
+```
+
+原 FastAPI direct dependency：
+
+```text
+aiomysql==0.3.2
+```
+
+但没有：
+
+```text
+cryptography
+```
+
+因此根因确定为：
+
+```text
+MYSQL_CACHING_SHA2_FULL_AUTH_DEPENDENCY_GAP
+```
+
+故障链：
+
+```text
+MySQL Pod replacement
+        ↓
+MySQL Server restart
+        ↓
+后续连接进入 caching_sha2_password 完整认证路径
+        ↓
+aiomysql / PyMySQL 需要 cryptographic/RSA client capability
+        ↓
+FastAPI image 中 cryptography 缺失
+        ↓
+RuntimeError
+        ↓
+check_mysql() 持续失败
+        ↓
+/readyz = 503
+        ↓
+FastAPI Pod Ready=False
+        ↓
+FastAPI EndpointSlice ready=false
+        ↓
+NGINX 无 Ready upstream
+        ↓
+502 Bad Gateway
+```
+
+本问题不是：
+
+* Kubernetes StatefulSet 故障；
+* PVC / PV 故障；
+* Local PV 数据丢失；
+* MySQL Service / DNS 故障；
+* Ingress 故障；
+* stale connection pool；
+* Redis 故障；
+* readiness timeout budget collision。
+
+---
+
+## 5.8 最小修复
+
+没有修改：
+
+* `database.py`；
+* `dependency_checks.py`；
+* `main.py`；
+* MySQL authentication plugin；
+* readiness probe；
+* dependency timeout；
+* PVC / PV；
+* MySQL StatefulSet。
+
+仅补齐客户端认证能力。
+
+`requirements.txt` 新增：
+
+```text
+cryptography==49.0.0
+```
+
+`requirements.lock.txt` 新增：
+
+```text
+cffi==2.1.1
+cryptography==49.0.0
+pycparser==3.0
+```
+
+隔离虚拟环境验证：
+
+```text
+pip check
+No broken requirements found.
+
+MYSQL_CLIENT_RUNTIME_IMPORTS=PASS
+PYTHON_COMPILEALL=PASS
+DIRECT_TO_LOCK_CONSISTENCY=PASS
+LOCK_SEMANTIC_MATCH=PASS
+SENSITIVE_LITERAL_SCAN=PASS
+```
+
+---
+
+## 5.9 v0.3.2 Release
+
+修复 commit：
+
+```text
+6a5d81e
+fix(api): support mysql caching sha2 authentication
+```
+
+Git Tag：
+
+```text
+opslab-api-v0.3.2
+```
+
+ACR 构建完成后的 immutable RepoDigest：
+
+```text
+sha256:4e268edf2609de2c5477323b104548c141999bfb2251507ed14e2f4c723135b8
+```
+
+完整镜像：
+
+```text
+crpi-uxjhyltxd2kcr7f9.cn-hangzhou.personal.cr.aliyuncs.com/k8s-test-111/opslab-api@sha256:4e268edf2609de2c5477323b104548c141999bfb2251507ed14e2f4c723135b8
+```
+
+Deployment pin commit：
+
+```text
+09d0ee3
+chore(deploy): pin opslab api v0.3.2 image
+```
+
+---
+
+## 5.10 v0.3.2 Remediation Deployment Validation
+
+新镜像部署后：
+
+```text
+APP_VERSION=v0.3.2
+READINESS_DEPENDENCY_TIMEOUT_SECONDS=1
+DEPENDENCY_TIMEOUT_SECONDS=2
+```
+
+运行时：
+
+```text
+cryptography_METADATA=49.0.0
+aiomysql_METADATA=0.3.2
+PyMySQL_METADATA=1.2.0
+cffi_METADATA=2.1.1
+pycparser_METADATA=3.0
+```
+
+`pip freeze` 与 lock 一致。
+
+所有新 FastAPI Pod：
+
+```text
+MYSQL_FULL_AUTH_CLIENT_CAPABILITY=PASS
+FRESH_MYSQL_CONNECTION=PASS
+SELECT_1=(1,)
+```
+
+应用恢复：
+
+```text
+/healthz
+HTTP 200
+
+/readyz
+HTTP 200
+{"status":"ready","mysql":"ok","redis":"ok"}
+```
+
+FastAPI EndpointSlice：
+
+```text
+ready=true
+serving=true
+```
+
+业务：
+
+```text
+GET /api/v1/events/1
+HTTP 200
+```
+
+因此：
+
+```text
+V0_3_2_ROLLOUT=PASS
+MYSQL_AUTH_REMEDIATION_DEPLOYED=PASS
+CURRENT_INCIDENT_RECOVERY=PASS
+```
+
+---
+
+## 5.11 Same-Scenario Regression
+
+为了证明修复不是由于应用重启或认证状态偶然变化造成，再次执行完全相同的 Fault Injection：
+
+```bash
+kubectl delete pod \
+  -n opslab \
+  opslab-mysql-0 \
+  --wait=false
+```
+
+回归前 MySQL：
+
+```text
+OLD_UID=88f03466-5987-4002-9566-6c0996600b0e
+OLD_IP=10.244.1.54
+```
+
+回归后：
+
+```text
+NEW_UID=b4b31e01-b32c-4f6c-a5c8-1f9e88acca54
+NEW_IP=10.244.1.59
+NEW_START_TIME=2026-08-13T09:47:26Z
+READY=True
+READY_TRANSITION=2026-08-13T09:47:32Z
+```
+
+确认：
+
+```text
+MYSQL_POD_UID_CHANGED=PASS
+MYSQL_STATEFULSET_RECREATION=PASS
+```
+
+---
+
+## 5.12 应用层故障与恢复时间线
+
+Ingress `/readyz` 观测：
+
+```text
+09:47:23.103
+HTTP 200
+{"status":"ready","mysql":"ok","redis":"ok"}
+
+09:47:23.656
+HTTP 503
+{"status":"not_ready","mysql":"error","redis":"ok"}
+
+...
+
+09:47:32.215
+HTTP 503
+
+09:47:33.777
+HTTP 200
+{"status":"ready","mysql":"ok","redis":"ok"}
+```
+
+说明：
+
+```text
+FastAPI readiness
+ready
+→ not_ready
+→ ready
+```
+
+并且整个过程中没有人工重启 FastAPI。
+
+最终两个 FastAPI Pod：
+
+```text
+RESTARTS=0
+READY=True
+```
+
+旧版本出现的：
+
+```text
+cryptography package is required...
+```
+
+错误没有再次出现。
+
+故障期间日志只出现与 MySQL 真正暂时不可用相符的：
+
+```text
+OperationalError
+TimeoutError
+```
+
+MySQL 恢复后这些错误停止影响 readiness。
+
+因此：
+
+```text
+MYSQL_FULL_AUTH_RECOVERY=PASS
+FASTAPI_MANUAL_RESTART_REQUIRED=NO
+PREVIOUS_CRYPTOGRAPHY_ERROR_REPRODUCED=NO
+```
+
+---
+
+## 5.13 Kubernetes Ready 状态说明
+
+本次回归虽然应用 `/readyz` 短暂返回 HTTP 503，但 Kubernetes 中 FastAPI Pod 并没有观察到：
+
+```text
+Ready=True → Ready=False
+```
+
+FastAPI EndpointSlice 也没有观察到：
+
+```text
+ready=true → ready=false
+```
+
+实际状态始终保持：
+
+```text
+Pod Ready=True
+Endpoint ready=true
+serving=true
+```
+
+原因是此次 MySQL 故障窗口较短，应用已经在 kubelet readiness probe 达到连续失败阈值之前自行恢复。
+
+因此本 Drill 不能写成：
+
+```text
+FastAPI Pod Ready=False → Ready=True
+```
+
+真实结论应为：
+
+```text
+APPLICATION_READINESS_TEMPORARY_503=OBSERVED
+KUBERNETES_POD_READY_STATE_TRANSITION=NOT_OBSERVED
+FASTAPI_ENDPOINT_REMOVAL=NOT_OBSERVED
+```
+
+这与第一次失败形成明显对比：
+
+第一次由于认证缺陷长期存在，最终导致 FastAPI Pod 真正进入 `Ready=False`；
+
+修复后应用能够在较短时间内自行恢复，因此未触发 Kubernetes Endpoint 摘除。
+
+---
+
+## 5.14 Storage 与数据恢复验证
+
+Same-Scenario Regression 后：
+
+```text
+PVC=opslab-mysql-data
+STATUS=Bound
+
+PV=opslab-mysql-local-pv
+STATUS=Bound
+RECLAIM_POLICY=Retain
+```
+
+MySQL Endpoint：
+
+```text
+10.244.1.59
+ready=true
+serving=true
+terminating=false
+```
+
+业务：
+
+```text
+GET /api/v1/events/1
+HTTP 200
+```
+
+返回：
+
+```json
+{
+  "id": 1,
+  "message": "fastapi-mysql-write-read-ok",
+  "created_at": "2026-08-08T15:49:47.595942"
+}
+```
+
+直接进入 MySQL 查询：
+
+```text
+id  message                       created_at
+1   fastapi-mysql-write-read-ok   2026-08-08 15:49:47.595942
+```
+
+因此：
+
+```text
+MYSQL_PVC_PRESERVED=PASS
+MYSQL_PV_PRESERVED=PASS
+MYSQL_DATA_PRESERVED=PASS
+BUSINESS_EVENT_POST_RECOVERY=PASS
+```
+
+没有使用 Backup / Restore。
+
+---
+
+## 5.15 Recovery Observation
+
+现有采样能够严谨记录：
+
+### Application readiness disruption
+
+首次观察到 HTTP 503：
+
+```text
+09:47:23.656
+```
+
+首次重新观察到 HTTP 200：
+
+```text
+09:47:33.777
+```
+
+因此：
+
+```text
+OBSERVED_APPLICATION_READINESS_DISRUPTION≈10.121s
+```
+
+该指标只是采样意义上的 application readiness disruption observation，不等同严格业务 RTO。
+
+### MySQL Pod Start → Ready
+
+```text
+START_TIME=09:47:26Z
+READY_TRANSITION=09:47:32Z
+```
+
+因此：
+
+```text
+OBSERVED_MYSQL_POD_START_TO_READY≈6s
+```
+
+### Observed MySQL Ready → Application Readiness Recovery
+
+Kubernetes 观察循环首次看到 MySQL Ready：
+
+```text
+09:47:33.281
+```
+
+Ingress 首次重新观察到 `/readyz=200`：
+
+```text
+09:47:33.777
+```
+
+因此：
+
+```text
+OBSERVED_MYSQL_READY_TO_APP_RECOVERY≈0.496s
+```
+
+以上均为 Observation，不声明为严格业务 RTO。
+
+---
+
+## 5.16 System Boundary
+
+本 Drill 能够证明：
+
+* StatefulSet 能够自动补回被删除的 MySQL Pod；
+* Pod UID / Pod IP 可以变化而业务数据保持；
+* PVC 与 Local PV 能够在同一节点上的 Pod 重建过程中保持数据；
+* MySQL Server 重启后，v0.3.2 FastAPI 能够重新完成认证；
+* FastAPI 不需要人工 restart 即可恢复；
+* 业务数据恢复不依赖 Backup / Restore；
+* systematic fault drill 能够发现正常运行状态下未暴露的 runtime dependency 缺陷。
+
+本 Drill 不能证明：
+
+* worker1 永久损坏后的 MySQL Storage HA；
+* Local PV 跨节点自动迁移；
+* MySQL 主从 / Group Replication 高可用；
+* 零业务错误；
+* 严格业务 RTO；
+* 节点级灾难恢复。
+
+Local PV 仍然只证明：
+
+```text
+Pod rebuild on same storage node → persistence
+```
+
+不能描述成：
+
+```text
+Cross-node Storage HA
+```
+
+---
+
+## 5.17 最终结论
+
+```text
+DRILL_3_PRE_FAULT_BASELINE=PASS
+
+DRILL_3_INITIAL_RUN=FAIL
+
+ROOT_CAUSE=
+MYSQL_CACHING_SHA2_FULL_AUTH_DEPENDENCY_GAP
+
+REMEDIATION=
+ADD_CRYPTOGRAPHY_CLIENT_CAPABILITY
+
+V0_3_2_RELEASE=PASS
+V0_3_2_IMMUTABLE_IMAGE=PASS
+V0_3_2_ROLLOUT=PASS
+
+MYSQL_POD_UID_CHANGED=PASS
+MYSQL_STATEFULSET_RECREATION=PASS
+
+MYSQL_PVC_PRESERVED=PASS
+MYSQL_PV_PRESERVED=PASS
+MYSQL_DATA_PRESERVED=PASS
+
+MYSQL_ENDPOINT_RECOVERY=PASS
+
+APPLICATION_READINESS_TEMPORARY_503=EXPECTED
+APPLICATION_READINESS_AUTO_RECOVERY=PASS
+
+KUBERNETES_POD_READY_STATE_TRANSITION=NOT_OBSERVED
+FASTAPI_ENDPOINT_REMOVAL=NOT_OBSERVED
+
+FASTAPI_MANUAL_RESTART_REQUIRED=NO
+FASTAPI_RESTART_COUNT=0
+
+PREVIOUS_CRYPTOGRAPHY_ERROR_REPRODUCED=NO
+MYSQL_FULL_AUTH_RECOVERY=PASS
+
+HEALTHZ_POST_RECOVERY=PASS
+READYZ_POST_RECOVERY=PASS
+BUSINESS_EVENT_POST_RECOVERY=PASS
+
+OBSERVED_APPLICATION_READINESS_DISRUPTION≈10.121s
+OBSERVED_MYSQL_POD_START_TO_READY≈6s
+OBSERVED_MYSQL_READY_TO_APP_RECOVERY≈0.496s
+
+SAME_SCENARIO_REGRESSION=PASS
+
+DRILL_3_MYSQL_POD_SELF_HEALING=PASS
+```
+
+**Drill 3 状态：SEALED。**
+
+
+
+
+后续继续 Drill 4 → Drill 7。全部完成后再进入 Final SRE Validation，并冻结传统 SRE Baseline。
 
 # 6. Drill 4 — HPA Load / Recovery
 
@@ -453,4 +1392,5 @@ Same-Scenario Regression Test
 PASS
 ```
 
-后续继续 Drill 3 → Drill 7。全部完成后再进入 Final SRE Validation，并冻结传统 SRE Baseline。
+
+
