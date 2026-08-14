@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opslab-aiops-observer
+  namespace: opslab
+automountServiceAccountToken: false
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: opslab-aiops-observer
+  namespace: opslab
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - events
+    verbs:
+      - get
+      - list
+
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - replicasets
+    verbs:
+      - get
+      - list
+
+  - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - get
+      - list
+
+  - apiGroups:
+      - policy
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - get
+      - list
+
+  - apiGroups:
+      - autoscaling
+    resources:
+      - horizontalpodautoscalers
+    verbs:
+      - get
+      - list
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: opslab-aiops-observer
+  namespace: opslab
+subjects:
+  - kind: ServiceAccount
+    name: opslab-aiops-observer
+    namespace: opslab
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: opslab-aiops-observer
