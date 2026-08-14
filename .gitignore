@@ -1,1 +1,8 @@
 /kubeadm-init-runtime.log
+/aiops/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+/aiops/*.sqlite3
+/aiops/*.db
+/aiops/runtime/
