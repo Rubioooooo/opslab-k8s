@@ -35,3 +35,13 @@ __all__ = [
     "current_replica_set_uids",
     "detect_fastapi_unhealthy_instances",
 ]
+
+from .serde import (
+    incident_context_from_dict,
+    load_incident_context,
+)
+
+__all__ += [
+    "incident_context_from_dict",
+    "load_incident_context",
+]
