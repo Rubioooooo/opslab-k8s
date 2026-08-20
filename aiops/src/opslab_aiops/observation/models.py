@@ -33,6 +33,8 @@ class ReplicaSetObservation:
     name: str
     uid: str
     owner_name: str | None
+    owner_kind: str | None
+    owner_uid: str | None
     replicas: int | None
     ready_replicas: int | None
     available_replicas: int | None
@@ -52,6 +54,8 @@ class PodObservation:
     name: str
     uid: str
     owner_name: str | None
+    owner_kind: str | None
+    owner_uid: str | None
     node_name: str | None
     phase: str | None
     pod_ip: str | None
@@ -66,6 +70,7 @@ class PodObservation:
 class EndpointObservation:
     addresses: tuple[str, ...]
     pod_name: str | None
+    pod_uid: str | None
     node_name: str | None
     ready: bool | None
     serving: bool | None
@@ -119,6 +124,7 @@ class ObservationSnapshot:
     collected_at: str
     namespace: str
     workload_name: str
+    service_name: str
 
     deployment: DeploymentObservation | None
 
@@ -129,7 +135,7 @@ class ObservationSnapshot:
     hpas: tuple[HPAObservation, ...] = field(default_factory=tuple)
     events: tuple[EventObservation, ...] = field(default_factory=tuple)
 
-    schema_version: str = "v1alpha1"
+    schema_version: str = "v1alpha2"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

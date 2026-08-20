@@ -31,17 +31,49 @@ def _iso(value: Any) -> str | None:
     return str(value)
 
 
-def _owner_name(metadata: Any) -> str | None:
+def _controller_owner(metadata: Any) -> Any | None:
     references = getattr(metadata, "owner_references", None) or ()
 
     for reference in references:
         if getattr(reference, "controller", False):
-            return reference.name
+            return reference
 
     if references:
-        return references[0].name
+        return references[0]
 
     return None
+
+
+def _owner_name(metadata: Any) -> str | None:
+    reference = _controller_owner(metadata)
+
+    if reference is None:
+        return None
+
+    return getattr(reference, "name", None)
+
+
+def _owner_kind(metadata: Any) -> str | None:
+    reference = _controller_owner(metadata)
+
+    if reference is None:
+        return None
+
+    return getattr(reference, "kind", None)
+
+
+def _owner_uid(metadata: Any) -> str | None:
+    reference = _controller_owner(metadata)
+
+    if reference is None:
+        return None
+
+    uid = getattr(reference, "uid", None)
+
+    if uid is None:
+        return None
+
+    return str(uid)
 
 
 def _conditions(
@@ -184,6 +216,8 @@ class KubernetesObservationCollector:
                 name=item.metadata.name,
                 uid=str(item.metadata.uid),
                 owner_name=_owner_name(item.metadata),
+                owner_kind=_owner_kind(item.metadata),
+                owner_uid=_owner_uid(item.metadata),
                 replicas=item.status.replicas,
                 ready_replicas=item.status.ready_replicas,
                 available_replicas=item.status.available_replicas,
@@ -235,6 +269,8 @@ class KubernetesObservationCollector:
                     name=item.metadata.name,
                     uid=str(item.metadata.uid),
                     owner_name=_owner_name(item.metadata),
+                    owner_kind=_owner_kind(item.metadata),
+                    owner_uid=_owner_uid(item.metadata),
                     node_name=item.spec.node_name,
                     phase=item.status.phase,
                     pod_ip=item.status.pod_ip,
@@ -281,6 +317,13 @@ class KubernetesObservationCollector:
                             target_ref.name
                             if target_ref is not None
                             and target_ref.kind == "Pod"
+                            else None
+                        ),
+                        pod_uid=(
+                            str(target_ref.uid)
+                            if target_ref is not None
+                            and target_ref.kind == "Pod"
+                            and target_ref.uid is not None
                             else None
                         ),
                         node_name=endpoint.node_name,
@@ -432,6 +475,7 @@ class KubernetesObservationCollector:
             collected_at=_iso(now) or "",
             namespace=self.namespace,
             workload_name=self.workload_name,
+            service_name=self.service_name,
             deployment=deployment,
             replica_sets=replica_sets,
             pods=tuple(pods),
