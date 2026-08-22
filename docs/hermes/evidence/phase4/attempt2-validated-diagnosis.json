@@ -1,0 +1,24 @@
+{
+  "affected_resource": {
+    "kind": "Pod",
+    "name": "opslab-api-797c8fdfbf-9mz4x",
+    "uid": "8985df8d-77f0-4a53-ae0d-67e538e313aa"
+  },
+  "confidence": "MEDIUM",
+  "diagnosis_id": "diag-inc-obs-20260822T124450Z-80769555-8985df8d-phase4-1f3fc86b",
+  "evidence_refs": [
+    "EV-0001",
+    "EV-0002"
+  ],
+  "incident_id": "inc-obs-20260822T124450Z-80769555-8985df8d",
+  "rationale": "Fresh evidence identifies one Running but NotReady FastAPI instance bound to the current workload. Controlled eviction is requested subject to deterministic Safety Gate authorization and explicit human approval.",
+  "recommended_action": "EVICT_POD",
+  "requires_human_approval": true,
+  "risk_notes": [
+    "Execution must use the dedicated least-privilege Executor identity.",
+    "Execution must remain bound to the authorized Pod UID."
+  ],
+  "root_cause": "The target application process is not responding to readiness checks while the Pod remains Running.",
+  "schema_version": "v1alpha1",
+  "summary": "Pod opslab-api-797c8fdfbf-9mz4x is Running but not Ready in the fresh observation."
+}
