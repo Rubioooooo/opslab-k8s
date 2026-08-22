@@ -1,0 +1,13 @@
+{
+  "attempt": "attempt1",
+  "attempt2_runtime_integrity": "PASS",
+  "failure": "runtime Experience does not match Phase6E evidence",
+  "minimum_fix": "Normalize the in-memory ExperienceRecord through JSON serialization before comparing it with the JSON evidence artifact.",
+  "phase": "Phase6F",
+  "product_code_modified_for_fix": false,
+  "product_failure": false,
+  "root_cause": "The audit directly compared ExperienceRecord.to_dict(), where evidence_refs remains a tuple, with JSON-loaded evidence where arrays are represented as lists. Python direct dict equality therefore produced a false mismatch despite equivalent serialized content.",
+  "schema_version": "v1alpha1",
+  "status": "FAILED_VALIDATION_SCRIPT",
+  "store_corruption_proven": false
+}
