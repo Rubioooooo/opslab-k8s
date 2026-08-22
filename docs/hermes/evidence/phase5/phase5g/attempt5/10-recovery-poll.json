@@ -1,0 +1,74 @@
+[
+  {
+    "added_uids": [
+      "0840c6a9-c605-4ed9-8ccc-3190b2ceb271"
+    ],
+    "available_replicas": 1,
+    "collected_at": "2026-08-22T15:48:28.936844Z",
+    "deployment_generation": 35,
+    "deployment_observed_generation": 35,
+    "old_target_exists": true,
+    "ready_replicas": 1,
+    "snapshot_id": "obs-20260822T154828Z-f7afa340"
+  },
+  {
+    "added_uids": [
+      "0840c6a9-c605-4ed9-8ccc-3190b2ceb271"
+    ],
+    "available_replicas": 1,
+    "collected_at": "2026-08-22T15:48:30.965397Z",
+    "deployment_generation": 35,
+    "deployment_observed_generation": 35,
+    "old_target_exists": false,
+    "ready_replicas": 1,
+    "snapshot_id": "obs-20260822T154830Z-21b2fa2f"
+  },
+  {
+    "added_uids": [
+      "0840c6a9-c605-4ed9-8ccc-3190b2ceb271"
+    ],
+    "available_replicas": 1,
+    "collected_at": "2026-08-22T15:48:32.995721Z",
+    "deployment_generation": 35,
+    "deployment_observed_generation": 35,
+    "old_target_exists": false,
+    "ready_replicas": 1,
+    "snapshot_id": "obs-20260822T154832Z-4ff31f9a"
+  },
+  {
+    "added_uids": [
+      "0840c6a9-c605-4ed9-8ccc-3190b2ceb271"
+    ],
+    "available_replicas": 1,
+    "collected_at": "2026-08-22T15:48:35.025742Z",
+    "deployment_generation": 35,
+    "deployment_observed_generation": 35,
+    "old_target_exists": false,
+    "ready_replicas": 2,
+    "snapshot_id": "obs-20260822T154835Z-5c85e9e3"
+  },
+  {
+    "added_uids": [
+      "0840c6a9-c605-4ed9-8ccc-3190b2ceb271"
+    ],
+    "available_replicas": 1,
+    "collected_at": "2026-08-22T15:48:37.052949Z",
+    "deployment_generation": 35,
+    "deployment_observed_generation": 35,
+    "old_target_exists": false,
+    "ready_replicas": 2,
+    "snapshot_id": "obs-20260822T154837Z-325694e5"
+  },
+  {
+    "added_uids": [
+      "0840c6a9-c605-4ed9-8ccc-3190b2ceb271"
+    ],
+    "available_replicas": 2,
+    "collected_at": "2026-08-22T15:48:39.085596Z",
+    "deployment_generation": 35,
+    "deployment_observed_generation": 35,
+    "old_target_exists": false,
+    "ready_replicas": 2,
+    "snapshot_id": "obs-20260822T154839Z-abe800a2"
+  }
+]

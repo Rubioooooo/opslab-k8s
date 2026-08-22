@@ -1,0 +1,7 @@
+{
+  "model": "deepseek-v4-flash",
+  "provider": "deepseek",
+  "status": "ok",
+  "tool_count": 0,
+  "tool_names": []
+}

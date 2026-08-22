@@ -1,0 +1,15 @@
+{
+  "completed_at": "2026-08-22T15:48:39.108735Z",
+  "execution_id": "exec-16961229-0a61-49c5-aced-835db43faf23",
+  "execution_status": "ACCEPTED",
+  "incident_id": "inc-obs-20260822T154701Z-38c35073-87f81972",
+  "model": "deepseek-v4-flash",
+  "phase": "Phase5G",
+  "provider": "deepseek",
+  "replacement_uid": "0840c6a9-c605-4ed9-8ccc-3190b2ceb271",
+  "target_name": "opslab-api-797c8fdfbf-jh9h2",
+  "target_uid": "87f81972-4ad6-4851-926c-310060df64c6",
+  "tool_count": 0,
+  "verification_id": "verify-f1d42eab-0818-4f28-8697-04dd3172754a",
+  "verification_outcome": "VERIFIED"
+}

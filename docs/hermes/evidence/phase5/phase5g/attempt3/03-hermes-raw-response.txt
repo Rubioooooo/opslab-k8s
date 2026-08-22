@@ -1,0 +1,24 @@
+{
+  "schema_version": "v1alpha1",
+  "diagnosis_id": "diag-obs-20260822T150723Z-d8b5476d-87f81972",
+  "incident_id": "inc-obs-20260822T150723Z-d8b5476d-87f81972",
+  "summary": "Pod opslab-api-797c8fdfbf-jh9h2 on k8s-worker1 is Running but not Ready: the opslab-api container is in the running state with restart_count 0 while the kubelet has repeatedly reported readiness probe failures (HTTP 503). The EndpointSlice marks the pod as not ready and not serving. A sibling replica on k8s-worker2 is Ready, which makes a node-wide outage less likely, although not every possible node-level fault is excluded. The Deployment currently reports 1 unavailable replica out of 2.",
+  "root_cause": "Bounded hypothesis: the opslab-api application instance is alive at the process level (container running, no restarts) but is failing its HTTP readiness probe with 503 responses and is therefore excluded from serving traffic. The underlying reason for the 503 (e.g., application error, failed dependency, configuration problem) is not directly proven by the available evidence; only the probe failure and the resulting unready state are observed. Historical kubelet events (EV-0011) indicate the 503 probe failures are the likely immediate cause of the unreadiness, but they are historical evidence, not current-state proof of the underlying fault.",
+  "confidence": "MEDIUM",
+  "evidence_refs": ["EV-0001", "EV-0003", "EV-0004", "EV-0011", "EV-0006", "EV-0002", "EV-0007"],
+  "affected_resource": {
+    "kind": "Pod",
+    "name": "opslab-api-797c8fdfbf-jh9h2",
+    "uid": "87f81972-4ad6-4851-926c-310060df64c6"
+  },
+  "recommended_action": "ESCALATE",
+  "rationale": "Current-state evidence confirms the target instance is unhealthy: the Pod is not Ready (EV-0001), the opslab-api container is running but not Ready with zero restarts (EV-0003), and the EndpointSlice reports the pod as not ready and not serving (EV-0004). A healthy sibling replica on a different node (EV-0006) makes a node-wide failure less likely but does not prove all node-level faults are absent. The root cause of the 503 responses is not directly proven, so a bounded remediation such as eviction cannot be confidently recommended: a replacement pod may exhibit the same unhealthiness if the fault is application- or environment-level, and eviction would temporarily reduce ready replicas during replacement. Per the escalation preference when evidence is insufficient for a bounded remediation recommendation, this incident is escalated so the underlying 503 cause (logs, dependencies, configuration) can be investigated before any disruptive action. PDB eviction eligibility is intentionally left UNKNOWN in this phase and must be independently evaluated by the later Safety Gate.",
+  "risk_notes": [
+    "PDB opslab-api reports disruptions_allowed=0 with current_healthy=1 and desired_healthy=1; final eviction eligibility is UNKNOWN in Phase 2 and must be independently evaluated by the Safety Gate. No inference is made here about whether an unhealthy-pod eviction would be allowed or blocked.",
+    "The underlying cause of the HTTP 503 is unproven; an evicted and recreated pod may fail readiness the same way if the fault is at the application or dependency level.",
+    "restart_count=0 is a cumulative counter and does not indicate a crash-loop; the instance is unready due to readiness probe failures while the process continues running.",
+    "The Deployment currently reports 1 unavailable replica out of 2; any eviction would rely on a replacement pod becoming Ready to restore the observed replica count.",
+    "The healthy sibling pod on k8s-worker2 makes a node-wide outage less likely but does not rule out every possible node-level fault or workload-specific issue."
+  ],
+  "requires_human_approval": true
+}

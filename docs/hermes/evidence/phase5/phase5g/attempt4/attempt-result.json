@@ -1,0 +1,19 @@
+{
+  "attempt": 4,
+  "status": "SAFE_ABORT_AFTER_REAL_HERMES_DIAGNOSIS",
+  "target_name": "opslab-api-797c8fdfbf-jh9h2",
+  "target_uid": "87f81972-4ad6-4851-926c-310060df64c6",
+  "real_target_readiness_semantics": true,
+  "target_http_status": 503,
+  "target_status": "not_ready",
+  "target_mysql": "error",
+  "target_redis": "ok",
+  "hermes_model": "deepseek-v4-flash",
+  "hermes_provider": "deepseek",
+  "hermes_tool_count": 0,
+  "diagnosis_action": "ESCALATE",
+  "eviction_api_called": false,
+  "verification_performed": false,
+  "reason": "Target dependency semantics were proven, but the IncidentContext did not yet contain equivalent healthy sibling dependency semantics.",
+  "recorded_at": "2026-08-22T15:45:01Z"
+}

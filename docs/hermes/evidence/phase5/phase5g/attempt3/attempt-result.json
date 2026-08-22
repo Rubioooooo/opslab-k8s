@@ -1,0 +1,19 @@
+{
+  "attempt": 3,
+  "status": "SAFE_ABORT_AFTER_REAL_HERMES_DIAGNOSIS",
+  "incident_id": "inc-obs-20260822T150723Z-d8b5476d-87f81972",
+  "target_name": "opslab-api-797c8fdfbf-jh9h2",
+  "target_uid": "87f81972-4ad6-4851-926c-310060df64c6",
+  "real_hermes": true,
+  "hermes_model": "deepseek-v4-flash",
+  "hermes_provider": "deepseek",
+  "hermes_tool_count": 0,
+  "diagnosis_action": "ESCALATE",
+  "human_approval_requested": false,
+  "safety_gate_called": false,
+  "eviction_api_called": false,
+  "eviction_accepted": false,
+  "verification_performed": false,
+  "reason": "REAL Hermes returned ESCALATE; harness correctly refused to override the diagnosis",
+  "recorded_at": "2026-08-22T15:10:52Z"
+}

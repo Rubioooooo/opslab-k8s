@@ -1,0 +1,8 @@
+{
+  "checked_at": "2026-08-22T15:48:39.107466Z",
+  "error": null,
+  "schema_version": "v1alpha1",
+  "status_code": 200,
+  "success": true,
+  "url": "http://api.opslab.local/api/v1/events/1"
+}

@@ -1,0 +1,11 @@
+{
+  "body": {
+    "mysql": "ok",
+    "redis": "ok",
+    "status": "ready"
+  },
+  "checked_at": "2026-08-22T15:48:39.086620Z",
+  "error": null,
+  "status_code": 200,
+  "success": true
+}

@@ -1,0 +1,16 @@
+{
+  "action": "EVICT_POD",
+  "decision": "REQUIRE_HUMAN",
+  "decision_id": "safety-diag-obs-20260822T145852Z-e4924515-87f81972-obs-20260822T145852Z-e4924515",
+  "evaluated_at": "2026-08-22T14:58:52.255908Z",
+  "fresh_snapshot_id": "obs-20260822T145852Z-e4924515",
+  "human_approved": false,
+  "incident_id": "inc-obs-20260822T145852Z-e4924515-87f81972",
+  "reason_codes": [
+    "HUMAN_APPROVAL_REQUIRED"
+  ],
+  "schema_version": "v1alpha1",
+  "target_kind": "Pod",
+  "target_name": "opslab-api-797c8fdfbf-jh9h2",
+  "target_uid": "87f81972-4ad6-4851-926c-310060df64c6"
+}

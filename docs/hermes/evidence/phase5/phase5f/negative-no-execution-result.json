@@ -1,0 +1,21 @@
+{
+  "baseline_snapshot_id": "obs-20260822T142744Z-3f441e63",
+  "evidence_refs": [
+    "PHASE5F-LIVE-BASELINE",
+    "PHASE5F-LIVE-POST",
+    "PHASE5F-LIVE-BUSINESS-PROBE"
+  ],
+  "execution_id": "phase5f-negative-control-refused",
+  "fresh_snapshot_id": "obs-20260822T142745Z-f303abb2",
+  "incident_id": "phase5f-negative-control",
+  "outcome": "INCONCLUSIVE",
+  "reason_codes": [
+    "EXECUTION_NOT_ACCEPTED",
+    "EXECUTION_ACCEPTANCE_REASON_MISSING"
+  ],
+  "replacement_uid": null,
+  "schema_version": "v1alpha1",
+  "target_uid": "87f81972-4ad6-4851-926c-310060df64c6",
+  "verification_id": "verify-cda1e40f-58b1-44ce-ad6e-ff410d324ef8",
+  "verified_at": "2026-08-22T14:27:45.906202Z"
+}

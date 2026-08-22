@@ -1,0 +1,16 @@
+{
+  "action": "EVICT_POD",
+  "decision": "ALLOW",
+  "decision_id": "safety-diag-inc-obs-20260822T154701Z-38c35073-87f81972-obs-20260822T154828Z-346defd6",
+  "evaluated_at": "2026-08-22T15:48:28.833497Z",
+  "fresh_snapshot_id": "obs-20260822T154828Z-346defd6",
+  "human_approved": true,
+  "incident_id": "inc-obs-20260822T154701Z-38c35073-87f81972",
+  "reason_codes": [
+    "ALL_SAFETY_CHECKS_PASSED"
+  ],
+  "schema_version": "v1alpha1",
+  "target_kind": "Pod",
+  "target_name": "opslab-api-797c8fdfbf-jh9h2",
+  "target_uid": "87f81972-4ad6-4851-926c-310060df64c6"
+}

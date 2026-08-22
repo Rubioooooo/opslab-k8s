@@ -1,0 +1,34 @@
+{
+  "affected_resource": {
+    "kind": "Pod",
+    "name": "opslab-api-797c8fdfbf-jh9h2",
+    "uid": "87f81972-4ad6-4851-926c-310060df64c6"
+  },
+  "confidence": "MEDIUM",
+  "diagnosis_id": "diag-inc-obs-20260822T154701Z-38c35073-87f81972",
+  "evidence_refs": [
+    "EV-0001",
+    "EV-0002",
+    "EV-0003",
+    "EV-0004",
+    "EV-0005",
+    "EV-0006",
+    "EV-0011",
+    "EV-0012",
+    "EV-0013"
+  ],
+  "incident_id": "inc-obs-20260822T154701Z-38c35073-87f81972",
+  "rationale": "EV-0001 and EV-0003 establish current state: the pod is Running with a running container, ready=false, and restart_count=0, so this is a readiness failure rather than a crash loop. EV-0012 (current application readiness semantics) identifies the failing dependency: /readyz returns 503 with mysql=error and redis=ok, status=not_ready. EV-0011 corroborates this with 152 historical kubelet readiness-probe failure events (HTTP 503). EV-0004 shows the target endpoint is ready=false and serving=false, so the pod is removed from service. EV-0002 and EV-0005 show the workload at 1 available/ready of 2 replicas with 1 unavailable. EV-0006 and EV-0013 show the sibling pod on k8s-worker2 is Ready with mysql=ok, which makes a shared/cluster-wide MySQL outage less likely and is consistent with a pod-local remediation hypothesis. Replacing the pod via eviction is a bounded remediation worth attempting; however, the underlying cause of the mysql=error dependency is not directly proven, and PDB/disruption eligibility must be evaluated independently by the later Safety Gate.",
+  "recommended_action": "EVICT_POD",
+  "requires_human_approval": true,
+  "risk_notes": [
+    "This EVICT_POD recommendation is a proposal for a later Safety Gate, not authorization to execute. PDB opslab-api currently reports disruptions_allowed=0 and current_healthy=1; eviction eligibility under the PDB must be independently evaluated by the later Safety Gate, and unhealthyPodEvictionPolicy is not available in this phase.",
+    "If the MySQL dependency failure is infrastructure-wide or shared despite the healthy sibling, eviction may not restore readiness and the replacement pod may also fail. In that case, escalation for MySQL connectivity investigation is required.",
+    "A node-local fault on k8s-worker1 cannot be fully excluded: only one observed workload pod runs on that node, so the healthy sibling on k8s-worker2 reduces but does not eliminate the likelihood of node-level causes.",
+    "restart_count=0 indicates no restarts so far; no automatic recovery should be inferred from the restart counter alone.",
+    "HPA reports min_replicas=2; after an eviction a replacement pod is expected, and the Safety Gate should verify replacement scheduling and subsequent readiness."
+  ],
+  "root_cause": "Bounded hypothesis: the target pod's application is failing its readiness dependency on MySQL. Its /readyz semantics report mysql=error and status=not_ready, so the readiness probe returns HTTP 503 and the pod is marked NotReady. The precise reason MySQL reports an error from this pod specifically (for example stale or exhausted connection pool, pod-local configuration or credentials issue, or degraded MySQL connectivity from this pod/node) is not directly proven by the available evidence. The healthy sibling on k8s-worker2 reporting mysql=ok reduces the likelihood of a cluster-wide MySQL outage but does not exclude a node-local or pod-local cause.",
+  "schema_version": "v1alpha1",
+  "summary": "Pod opslab-api-797c8fdfbf-jh9h2 on k8s-worker1 is Running but not Ready. The opslab-api container is running with restart_count=0, yet kubelet has recorded 152 readiness-probe failures (HTTP 503 on /readyz). The application's own readiness semantics for this pod report status=not_ready with mysql=error and redis=ok, while the sibling pod on k8s-worker2 reports status=ready with mysql=ok and is Ready/serving. The Deployment status reflects 1 unavailable replica, and the target endpoint is not serving."
+}

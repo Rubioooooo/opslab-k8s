@@ -1,0 +1,15 @@
+{
+  "attempt": 2,
+  "status": "ABORTED_BEFORE_EVICTION_API_CALL",
+  "incident_id": "inc-obs-20260822T145852Z-e4924515-87f81972",
+  "target_name": "opslab-api-797c8fdfbf-jh9h2",
+  "target_uid": "87f81972-4ad6-4851-926c-310060df64c6",
+  "human_approval": true,
+  "safety_decision": "ALLOW",
+  "eviction_api_called": false,
+  "eviction_accepted": false,
+  "verification_performed": false,
+  "failure_type": "AttributeError",
+  "root_cause": "Phase5G harness instantiated PolicyV1Api for the Pod eviction subresource instead of CoreV1Api",
+  "recorded_at": "2026-08-22T15:03:00Z"
+}

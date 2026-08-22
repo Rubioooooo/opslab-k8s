@@ -1,0 +1,23 @@
+{
+  "baseline_snapshot_id": "obs-20260822T154828Z-346defd6",
+  "evidence_refs": [
+    "07-pre-execution-snapshot.json",
+    "08-allow-decision.json",
+    "09-execution-result.json",
+    "11-post-recovery-snapshot.json",
+    "12-readiness-probe.json",
+    "13-business-probe.json"
+  ],
+  "execution_id": "exec-16961229-0a61-49c5-aced-835db43faf23",
+  "fresh_snapshot_id": "obs-20260822T154839Z-abe800a2",
+  "incident_id": "inc-obs-20260822T154701Z-38c35073-87f81972",
+  "outcome": "VERIFIED",
+  "reason_codes": [
+    "ALL_VERIFICATION_CHECKS_PASSED"
+  ],
+  "replacement_uid": "0840c6a9-c605-4ed9-8ccc-3190b2ceb271",
+  "schema_version": "v1alpha1",
+  "target_uid": "87f81972-4ad6-4851-926c-310060df64c6",
+  "verification_id": "verify-f1d42eab-0818-4f28-8697-04dd3172754a",
+  "verified_at": "2026-08-22T15:48:39.108456Z"
+}

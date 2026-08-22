@@ -1,0 +1,33 @@
+{
+  "affected_resource": {
+    "kind": "Pod",
+    "name": "opslab-api-797c8fdfbf-jh9h2",
+    "uid": "87f81972-4ad6-4851-926c-310060df64c6"
+  },
+  "confidence": "MEDIUM",
+  "diagnosis_id": "diag-20260822T153459Z-318515c1-87f81972",
+  "evidence_refs": [
+    "EV-0001",
+    "EV-0002",
+    "EV-0003",
+    "EV-0004",
+    "EV-0006",
+    "EV-0007",
+    "EV-0011",
+    "EV-0012"
+  ],
+  "incident_id": "inc-obs-20260822T153459Z-318515c1-87f81972",
+  "rationale": "Current-state evidence shows the target Pod is Running but not Ready (EV-0001), with the container in state=running, ready=false and restart_count=0 (EV-0003), so the failure is a readiness-gate failure rather than a crash or restart cycle. The kubelet reports repeated readiness probe failures with HTTP 503 (EV-0011), and the application's own readiness endpoint reports status=not_ready with mysql=error and redis=ok (EV-0012), pointing to an application-level dependency on MySQL as the likely cause. The sibling Pod on k8s-worker2 is Ready (EV-0006), which makes a node-wide outage on k8s-worker1 less likely but does not exclude all node-level faults. The Deployment has 1 of 2 replicas available (EV-0002), so the workload is in a degraded availability state. Because the underlying reason for the reported MySQL error is not proven, evicting the Pod is not a bounded remediation: a replacement instance would likely encounter the same dependency failure if the issue is at the MySQL layer, and the observed failure is not instance-local or crash-related. The PDB reports disruptions_allowed=0 (EV-0007), which is contextual diagnosis evidence only; Phase 2 cannot determine eviction eligibility and the Safety Gate must independently evaluate it. Given that the root cause of the MySQL dependency error is not identified and eviction is unlikely to address it, escalation for human investigation of the MySQL dependency is the appropriate recommendation. EVICT_POD is not recommended because the evidence does not support that recreating this instance would restore readiness.",
+  "recommended_action": "ESCALATE",
+  "requires_human_approval": true,
+  "risk_notes": [
+    "PDB status (disruptions_allowed=0, current_healthy=1, desired_healthy=1) is contextual only; final PDB eviction/disruption eligibility is UNKNOWN in Phase 2 and must be independently evaluated by the Safety Gate.",
+    "The root cause of the application-reported MySQL error is not proven; if the MySQL dependency is the cause, evicting or recreating this Pod would likely not restore readiness and could leave the workload further degraded.",
+    "restart_count=0 is a cumulative counter and is not evidence of recovery likelihood; no crash loop or repeated restart is asserted for this incident.",
+    "A node-level fault on k8s-worker1 is less likely because the sibling Pod on k8s-worker2 is healthy, but this does not rule out every possible node-local condition.",
+    "This diagnosis is a bounded hypothesis, not a proven root cause; the exact reason for the mysql=error reported by /readyz requires further investigation outside this evidence set."
+  ],
+  "root_cause": "Bounded hypothesis: the target Pod's container is running but is failing its readiness probe because the application reports an internal dependency failure on MySQL (/readyz returns HTTP 503, status=not_ready, mysql=error, redis=ok). This application-level readiness gate non-passing is directly evidenced by the probe semantics, and is the most likely reason the Pod is not Ready. The underlying cause of the MySQL error reported by the application (for example MySQL availability, connectivity, credentials, or database state) is NOT proven by the supplied evidence. A node-local fault on k8s-worker1 is less likely because the sibling Pod on k8s-worker2 is Ready, but a node-level condition is not excluded. There is no evidence of a container crash or restart (restart_count=0), so no crash-loop condition is inferred.",
+  "schema_version": "v1alpha1",
+  "summary": "Target Pod opslab-api-797c8fdfbf-jh9h2 on node k8s-worker1 is Running but not Ready. Its container opslab-api is running without restarts (restart_count=0) yet fails the /readyz readiness probe with HTTP 503; the application's readiness semantics report status=not_ready with an internal dependency error (mysql=error, redis=ok). The pod is not serving traffic (EndpointSlice serving=false), the Deployment has 1 of 2 replicas available, and the sibling pod on k8s-worker2 is Ready. PDB status is contextual only; eviction eligibility remains to be evaluated by the Safety Gate."
+}

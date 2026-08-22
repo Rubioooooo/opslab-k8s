@@ -1,0 +1,16 @@
+{
+  "action": "EVICT_POD",
+  "api_status_code": 201,
+  "attempted_at": "2026-08-22T15:48:28.849907Z",
+  "decision_id": "safety-diag-inc-obs-20260822T154701Z-38c35073-87f81972-obs-20260822T154828Z-346defd6",
+  "execution_id": "exec-16961229-0a61-49c5-aced-835db43faf23",
+  "incident_id": "inc-obs-20260822T154701Z-38c35073-87f81972",
+  "namespace": "opslab",
+  "reason_codes": [
+    "EVICTION_ACCEPTED"
+  ],
+  "schema_version": "v1alpha1",
+  "status": "ACCEPTED",
+  "target_name": "opslab-api-797c8fdfbf-jh9h2",
+  "target_uid": "87f81972-4ad6-4851-926c-310060df64c6"
+}

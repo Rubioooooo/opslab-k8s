@@ -1,0 +1,459 @@
+{
+  "created_at": "2026-08-22T15:34:59.171692Z",
+  "current_state": {
+    "current_pods": [
+      {
+        "conditions": [
+          {
+            "last_transition_time": "2026-08-22T12:18:46Z",
+            "message": null,
+            "reason": null,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "last_transition_time": "2026-08-22T12:18:45Z",
+            "message": null,
+            "reason": null,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "last_transition_time": "2026-08-22T15:34:48Z",
+            "message": "containers with unready status: [opslab-api]",
+            "reason": "ContainersNotReady",
+            "status": "False",
+            "type": "Ready"
+          },
+          {
+            "last_transition_time": "2026-08-22T15:34:48Z",
+            "message": "containers with unready status: [opslab-api]",
+            "reason": "ContainersNotReady",
+            "status": "False",
+            "type": "ContainersReady"
+          },
+          {
+            "last_transition_time": "2026-08-22T12:18:45Z",
+            "message": null,
+            "reason": null,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containers": [
+          {
+            "name": "opslab-api",
+            "ready": false,
+            "reason": null,
+            "restart_count": 0,
+            "state": "running"
+          }
+        ],
+        "deletion_timestamp": null,
+        "name": "opslab-api-797c8fdfbf-jh9h2",
+        "node_name": "k8s-worker1",
+        "owner_kind": "ReplicaSet",
+        "owner_name": "opslab-api-797c8fdfbf",
+        "owner_uid": "847252fc-5a63-44cf-bedd-f6d9e5efd990",
+        "phase": "Running",
+        "pod_ip": "10.244.1.127",
+        "ready": false,
+        "start_time": "2026-08-22T12:18:45Z",
+        "uid": "87f81972-4ad6-4851-926c-310060df64c6"
+      },
+      {
+        "conditions": [
+          {
+            "last_transition_time": "2026-08-22T12:45:22Z",
+            "message": null,
+            "reason": null,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "last_transition_time": "2026-08-22T12:45:22Z",
+            "message": null,
+            "reason": null,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "last_transition_time": "2026-08-22T12:45:26Z",
+            "message": null,
+            "reason": null,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "last_transition_time": "2026-08-22T12:45:26Z",
+            "message": null,
+            "reason": null,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "last_transition_time": "2026-08-22T12:45:22Z",
+            "message": null,
+            "reason": null,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containers": [
+          {
+            "name": "opslab-api",
+            "ready": true,
+            "reason": null,
+            "restart_count": 0,
+            "state": "running"
+          }
+        ],
+        "deletion_timestamp": null,
+        "name": "opslab-api-797c8fdfbf-qhwq2",
+        "node_name": "k8s-worker2",
+        "owner_kind": "ReplicaSet",
+        "owner_name": "opslab-api-797c8fdfbf",
+        "owner_uid": "847252fc-5a63-44cf-bedd-f6d9e5efd990",
+        "phase": "Running",
+        "pod_ip": "10.244.2.98",
+        "ready": true,
+        "start_time": "2026-08-22T12:45:22Z",
+        "uid": "aac2b948-5a10-49d9-8e0d-ffd1b8ee3fc2"
+      }
+    ],
+    "current_replica_sets": [
+      {
+        "available_replicas": 1,
+        "name": "opslab-api-797c8fdfbf",
+        "owner_kind": "Deployment",
+        "owner_name": "opslab-api",
+        "owner_uid": "1cfe8a17-6847-46ed-b128-b87f0d2e3929",
+        "ready_replicas": 1,
+        "replicas": 2,
+        "uid": "847252fc-5a63-44cf-bedd-f6d9e5efd990"
+      }
+    ],
+    "deployment": {
+      "available_replicas": 1,
+      "conditions": [
+        {
+          "last_transition_time": "2026-08-07T03:20:40Z",
+          "message": "ReplicaSet \"opslab-api-797c8fdfbf\" has successfully progressed.",
+          "reason": "NewReplicaSetAvailable",
+          "status": "True",
+          "type": "Progressing"
+        },
+        {
+          "last_transition_time": "2026-08-22T15:34:49Z",
+          "message": "Deployment does not have minimum availability.",
+          "reason": "MinimumReplicasUnavailable",
+          "status": "False",
+          "type": "Available"
+        }
+      ],
+      "generation": 35,
+      "name": "opslab-api",
+      "observed_generation": 35,
+      "ready_replicas": 1,
+      "replicas": 2,
+      "uid": "1cfe8a17-6847-46ed-b128-b87f0d2e3929",
+      "unavailable_replicas": 1,
+      "updated_replicas": 2
+    },
+    "endpoint_slices": [
+      {
+        "endpoints": [
+          {
+            "addresses": [
+              "10.244.1.127"
+            ],
+            "node_name": "k8s-worker1",
+            "pod_name": "opslab-api-797c8fdfbf-jh9h2",
+            "pod_uid": "87f81972-4ad6-4851-926c-310060df64c6",
+            "ready": false,
+            "serving": false,
+            "terminating": false
+          },
+          {
+            "addresses": [
+              "10.244.2.98"
+            ],
+            "node_name": "k8s-worker2",
+            "pod_name": "opslab-api-797c8fdfbf-qhwq2",
+            "pod_uid": "aac2b948-5a10-49d9-8e0d-ffd1b8ee3fc2",
+            "ready": true,
+            "serving": true,
+            "terminating": false
+          }
+        ],
+        "name": "opslab-api-xdfd5",
+        "uid": "d43abe26-62da-4c79-8493-17263f6cc309"
+      }
+    ],
+    "hpas": [
+      {
+        "current_replicas": 2,
+        "desired_replicas": 2,
+        "max_replicas": 4,
+        "min_replicas": 2,
+        "name": "opslab-api",
+        "uid": "84292eeb-0101-4a3d-a125-213ff4d8c163"
+      }
+    ],
+    "pdbs": [
+      {
+        "current_healthy": 1,
+        "desired_healthy": 1,
+        "disruptions_allowed": 0,
+        "expected_pods": 2,
+        "generation": 1,
+        "name": "opslab-api",
+        "observed_generation": 1,
+        "uid": "75ad4a70-495d-4acd-b640-6407925fadd6",
+        "unhealthy_pod_eviction_policy": null
+      }
+    ],
+    "topology": [
+      {
+        "node_name": "k8s-worker1",
+        "pod_names": [
+          "opslab-api-797c8fdfbf-jh9h2"
+        ]
+      },
+      {
+        "node_name": "k8s-worker2",
+        "pod_names": [
+          "opslab-api-797c8fdfbf-qhwq2"
+        ]
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "category": "CURRENT_STATE",
+      "evidence_id": "EV-0001",
+      "fact": {
+        "deletion_timestamp": null,
+        "node_name": "k8s-worker1",
+        "phase": "Running",
+        "ready": false
+      },
+      "fact_type": "POD_STATUS",
+      "observed_at": "2026-08-22T15:34:59.171692Z",
+      "source_kind": "Pod",
+      "source_name": "opslab-api-797c8fdfbf-jh9h2",
+      "source_uid": "87f81972-4ad6-4851-926c-310060df64c6"
+    },
+    {
+      "category": "CURRENT_STATE",
+      "evidence_id": "EV-0002",
+      "fact": {
+        "available_replicas": 1,
+        "generation": 35,
+        "observed_generation": 35,
+        "ready_replicas": 1,
+        "replicas": 2,
+        "unavailable_replicas": 1,
+        "updated_replicas": 2
+      },
+      "fact_type": "DEPLOYMENT_AVAILABILITY",
+      "observed_at": "2026-08-22T15:34:59.171692Z",
+      "source_kind": "Deployment",
+      "source_name": "opslab-api",
+      "source_uid": "1cfe8a17-6847-46ed-b128-b87f0d2e3929"
+    },
+    {
+      "category": "CURRENT_STATE",
+      "evidence_id": "EV-0003",
+      "fact": {
+        "pod_name": "opslab-api-797c8fdfbf-jh9h2",
+        "ready": false,
+        "reason": null,
+        "restart_count": 0,
+        "state": "running"
+      },
+      "fact_type": "CONTAINER_STATUS",
+      "observed_at": "2026-08-22T15:34:59.171692Z",
+      "source_kind": "Container",
+      "source_name": "opslab-api",
+      "source_uid": "87f81972-4ad6-4851-926c-310060df64c6"
+    },
+    {
+      "category": "CURRENT_STATE",
+      "evidence_id": "EV-0004",
+      "fact": {
+        "addresses": [
+          "10.244.1.127"
+        ],
+        "pod_name": "opslab-api-797c8fdfbf-jh9h2",
+        "pod_uid": "87f81972-4ad6-4851-926c-310060df64c6",
+        "ready": false,
+        "serving": false,
+        "terminating": false
+      },
+      "fact_type": "TARGET_ENDPOINT_STATUS",
+      "observed_at": "2026-08-22T15:34:59.171692Z",
+      "source_kind": "EndpointSlice",
+      "source_name": "opslab-api-xdfd5",
+      "source_uid": "d43abe26-62da-4c79-8493-17263f6cc309"
+    },
+    {
+      "category": "CURRENT_STATE",
+      "evidence_id": "EV-0005",
+      "fact": {
+        "available_replicas": 1,
+        "ready_replicas": 1,
+        "replicas": 2
+      },
+      "fact_type": "REPLICASET_STATUS",
+      "observed_at": "2026-08-22T15:34:59.171692Z",
+      "source_kind": "ReplicaSet",
+      "source_name": "opslab-api-797c8fdfbf",
+      "source_uid": "847252fc-5a63-44cf-bedd-f6d9e5efd990"
+    },
+    {
+      "category": "CURRENT_STATE",
+      "evidence_id": "EV-0006",
+      "fact": {
+        "deletion_timestamp": null,
+        "node_name": "k8s-worker2",
+        "phase": "Running",
+        "ready": true
+      },
+      "fact_type": "SIBLING_POD_STATUS",
+      "observed_at": "2026-08-22T15:34:59.171692Z",
+      "source_kind": "Pod",
+      "source_name": "opslab-api-797c8fdfbf-qhwq2",
+      "source_uid": "aac2b948-5a10-49d9-8e0d-ffd1b8ee3fc2"
+    },
+    {
+      "category": "CURRENT_STATE",
+      "evidence_id": "EV-0007",
+      "fact": {
+        "current_healthy": 1,
+        "desired_healthy": 1,
+        "disruptions_allowed": 0,
+        "expected_pods": 2
+      },
+      "fact_type": "PDB_STATUS",
+      "observed_at": "2026-08-22T15:34:59.171692Z",
+      "source_kind": "PodDisruptionBudget",
+      "source_name": "opslab-api",
+      "source_uid": "75ad4a70-495d-4acd-b640-6407925fadd6"
+    },
+    {
+      "category": "CURRENT_STATE",
+      "evidence_id": "EV-0008",
+      "fact": {
+        "current_replicas": 2,
+        "desired_replicas": 2,
+        "max_replicas": 4,
+        "min_replicas": 2
+      },
+      "fact_type": "HPA_STATUS",
+      "observed_at": "2026-08-22T15:34:59.171692Z",
+      "source_kind": "HorizontalPodAutoscaler",
+      "source_name": "opslab-api",
+      "source_uid": "84292eeb-0101-4a3d-a125-213ff4d8c163"
+    },
+    {
+      "category": "CURRENT_STATE",
+      "evidence_id": "EV-0009",
+      "fact": {
+        "node_name": "k8s-worker1",
+        "pod_names": [
+          "opslab-api-797c8fdfbf-jh9h2"
+        ]
+      },
+      "fact_type": "POD_PLACEMENT",
+      "observed_at": "2026-08-22T15:34:59.171692Z",
+      "source_kind": "Topology",
+      "source_name": "k8s-worker1",
+      "source_uid": null
+    },
+    {
+      "category": "CURRENT_STATE",
+      "evidence_id": "EV-0010",
+      "fact": {
+        "node_name": "k8s-worker2",
+        "pod_names": [
+          "opslab-api-797c8fdfbf-qhwq2"
+        ]
+      },
+      "fact_type": "POD_PLACEMENT",
+      "observed_at": "2026-08-22T15:34:59.171692Z",
+      "source_kind": "Topology",
+      "source_name": "k8s-worker2",
+      "source_uid": null
+    },
+    {
+      "category": "HISTORICAL_EVENT",
+      "evidence_id": "EV-0011",
+      "fact": {
+        "count": 111,
+        "involved_kind": "Pod",
+        "involved_name": "opslab-api-797c8fdfbf-jh9h2",
+        "involved_uid": "87f81972-4ad6-4851-926c-310060df64c6",
+        "message": "Readiness probe failed: HTTP probe failed with statuscode: 503",
+        "reason": "Unhealthy",
+        "reporting_controller": "kubelet",
+        "type": "Warning"
+      },
+      "fact_type": "KUBERNETES_EVENT",
+      "observed_at": "2026-08-22T15:34:53Z",
+      "source_kind": "Event",
+      "source_name": "6e6a3cd1-8850-4b46-af39-b564f5d68a93",
+      "source_uid": "6e6a3cd1-8850-4b46-af39-b564f5d68a93"
+    },
+    {
+      "category": "CURRENT_STATE",
+      "evidence_id": "EV-0012",
+      "fact": {
+        "http_status": 503,
+        "mysql": "error",
+        "probe_path": "/readyz",
+        "redis": "ok",
+        "status": "not_ready"
+      },
+      "fact_type": "TARGET_READINESS_SEMANTICS",
+      "observed_at": "2026-08-22T15:34:59.172536Z",
+      "source_kind": "ApplicationProbe",
+      "source_name": "opslab-api-797c8fdfbf-jh9h2",
+      "source_uid": "87f81972-4ad6-4851-926c-310060df64c6"
+    }
+  ],
+  "historical_evidence": [
+    {
+      "count": 111,
+      "involved_kind": "Pod",
+      "involved_name": "opslab-api-797c8fdfbf-jh9h2",
+      "involved_uid": "87f81972-4ad6-4851-926c-310060df64c6",
+      "message": "Readiness probe failed: HTTP probe failed with statuscode: 503",
+      "reason": "Unhealthy",
+      "reporting_controller": "kubelet",
+      "timestamp": "2026-08-22T15:34:53Z",
+      "type": "Warning",
+      "uid": "6e6a3cd1-8850-4b46-af39-b564f5d68a93"
+    }
+  ],
+  "incident_id": "inc-obs-20260822T153459Z-318515c1-87f81972",
+  "incident_type": "FASTAPI_UNHEALTHY_INSTANCE",
+  "schema_version": "v1alpha1",
+  "source": {
+    "collected_at": "2026-08-22T15:34:59.171692Z",
+    "namespace": "opslab",
+    "service_name": "opslab-api",
+    "snapshot_id": "obs-20260822T153459Z-318515c1",
+    "workload_name": "opslab-api"
+  },
+  "trigger": {
+    "evidence_refs": [
+      "EV-0001",
+      "EV-0002"
+    ],
+    "rule_id": "fastapi_unhealthy_instance.v1",
+    "target_kind": "Pod",
+    "target_name": "opslab-api-797c8fdfbf-jh9h2",
+    "target_uid": "87f81972-4ad6-4851-926c-310060df64c6"
+  }
+}
