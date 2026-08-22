@@ -88,10 +88,15 @@ class EndpointSliceObservation:
 class PDBObservation:
     name: str
     uid: str
+
     disruptions_allowed: int | None
     current_healthy: int | None
     desired_healthy: int | None
     expected_pods: int | None
+
+    generation: int | None = None
+    observed_generation: int | None = None
+    unhealthy_pod_eviction_policy: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,7 +140,7 @@ class ObservationSnapshot:
     hpas: tuple[HPAObservation, ...] = field(default_factory=tuple)
     events: tuple[EventObservation, ...] = field(default_factory=tuple)
 
-    schema_version: str = "v1alpha2"
+    schema_version: str = "v1alpha3"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

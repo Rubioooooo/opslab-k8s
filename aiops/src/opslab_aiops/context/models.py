@@ -127,7 +127,16 @@ class IncidentContext:
     schema_version: str = "v1alpha1"
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        value = asdict(self)
+
+        # Phase 3 safety-only PDB fields must not be exposed to Hermes.
+        # IncidentContext keeps the sealed Phase 2 PDB evidence contract.
+        for pdb in value["current_state"]["pdbs"]:
+            pdb.pop("generation", None)
+            pdb.pop("observed_generation", None)
+            pdb.pop("unhealthy_pod_eviction_policy", None)
+
+        return value
 
     def to_json(self, *, indent: int = 2) -> str:
         return json.dumps(

@@ -17,6 +17,7 @@ from opslab_aiops.observation.models import (
     EndpointSliceObservation,
     EventObservation,
     ObservationSnapshot,
+    PDBObservation,
     PodObservation,
     ReplicaSetObservation,
 )
@@ -172,6 +173,19 @@ def make_snapshot() -> ObservationSnapshot:
             healthy_pod,
         ),
         endpoint_slices=(endpoint_slice,),
+        pdbs=(
+            PDBObservation(
+                name="opslab-api",
+                uid="pdb-uid",
+                disruptions_allowed=0,
+                current_healthy=1,
+                desired_healthy=1,
+                expected_pods=2,
+                generation=1,
+                observed_generation=1,
+                unhealthy_pod_eviction_policy="AlwaysAllow",
+            ),
+        ),
         events=(
             stale_event,
             old_rs_event,
@@ -313,6 +327,19 @@ class IncidentContextBuilderTests(unittest.TestCase):
             value["source"]["snapshot_id"],
             "obs-builder-test",
         )
+
+
+    def test_phase3_pdb_safety_fields_do_not_leak_to_phase2_context(
+        self,
+    ) -> None:
+        value = json.loads(self.context.to_json())
+        pdb = value["current_state"]["pdbs"][0]
+
+        self.assertEqual(pdb["name"], "opslab-api")
+        self.assertEqual(pdb["disruptions_allowed"], 0)
+        self.assertNotIn("generation", pdb)
+        self.assertNotIn("observed_generation", pdb)
+        self.assertNotIn("unhealthy_pod_eviction_policy", pdb)
 
 
 if __name__ == "__main__":

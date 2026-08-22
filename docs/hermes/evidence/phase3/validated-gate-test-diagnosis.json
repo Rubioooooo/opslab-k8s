@@ -1,0 +1,31 @@
+{
+  "affected_resource": {
+    "kind": "Pod",
+    "name": "opslab-api-797c8fdfbf-2mrbr",
+    "uid": "f1387f0a-e8ea-44bb-9e6b-74b03a80d37e"
+  },
+  "confidence": "MEDIUM",
+  "diagnosis_id": "diag-phase3-gate-inc-obs-20260822T024445Z-9fe17fff-f1387f0a",
+  "evidence_refs": [
+    "EV-0001",
+    "EV-0002",
+    "EV-0003",
+    "EV-0004",
+    "EV-0005",
+    "EV-0006",
+    "EV-0007",
+    "EV-0008",
+    "EV-0009"
+  ],
+  "incident_id": "inc-obs-20260822T024445Z-9fe17fff-f1387f0a",
+  "rationale": "Use this validator-approved DiagnosisResult only as the Phase 3 authorization test input. Execution is out of scope.",
+  "recommended_action": "EVICT_POD",
+  "requires_human_approval": true,
+  "risk_notes": [
+    "Fresh Safety Gate evaluation is required.",
+    "Explicit human approval is required before authorization."
+  ],
+  "root_cause": "Current evidence establishes Running-but-NotReady state, but does not prove the underlying mechanism.",
+  "schema_version": "v1alpha1",
+  "summary": "The target Pod is currently Running but NotReady."
+}

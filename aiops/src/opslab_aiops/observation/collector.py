@@ -367,6 +367,13 @@ class KubernetesObservationCollector:
                 current_healthy=item.status.current_healthy,
                 desired_healthy=item.status.desired_healthy,
                 expected_pods=item.status.expected_pods,
+                generation=item.metadata.generation,
+                observed_generation=(
+                    item.status.observed_generation
+                ),
+                unhealthy_pod_eviction_policy=(
+                    item.spec.unhealthy_pod_eviction_policy
+                ),
             )
             for item in sorted(
                 relevant_pdbs_raw,
